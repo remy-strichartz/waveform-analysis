@@ -16,6 +16,8 @@ h5py): `C:\Users\remys\miniconda3\python.exe`.
 | `boxcar.py` | driver: colored-noise-optimal top-hat integral amplitude. |
 | `compare.py` | **the production driver**: runs both estimators on one preparation and compares them. |
 | `timewalk_report.py` | standalone QC report on the residual time-walk (see below — retained deliberately). |
+| `run_batch.py` | **the batch driver**: runs the whole canonical sweep and writes its record (see below). |
+| `make_summary.py` | rebuilds `final_run_summary.json` from the batch logs; called by `run_batch.py`. |
 | `tests/test_energy_reconstruction.py` | synthetic end-to-end regression tests (no real data touched). |
 
 ## Pipeline stages, in order
@@ -82,19 +84,32 @@ Results land in `energy_reconstruction_results/<mode>_mode/<stem>_compare_result
 (`--overwrite` keeps one canonical folder per channel; without it a re-run gets a
 fresh `_N` suffix).
 
+**Re-run the whole thing with `run_batch.py`** — 11 gamma-muon compares, the two
+triage-cleaned PMT exports in muon mode, 11 timewalk reports (~80 min):
+
 ```powershell
-# gamma-muon mode: all raw single channels
-foreach ($ch in @("run00270_ch0","run00270_ch1","run00270_ch2","run00270_ch3",
-                  "run00270_ch4","run00270_ch5","run00270_ch6","run00270_ch7",
-                  "run00270_ch9","run00270_ch10","caen_ch0")) {
-  & C:\Users\remys\miniconda3\python.exe compare.py --input "$ch.h5" `
-      --save-plots --no-show --overwrite
-}
-# muon mode: the triage-cleaned PMT exports
+& C:\Users\remys\miniconda3\python.exe run_batch.py            # the canonical sweep
+& C:\Users\remys\miniconda3\python.exe run_batch.py --dry-run  # list jobs, check inputs
+```
+
+It writes the *record*, not just the plots: `logs/<job>.log`, `logs/manifest.txt`
+(commands, exit codes, wall times, library + git versions), `logs/COMPLETE.txt` — which
+exists **only if all 24 jobs exited 0**, so treat its absence as "the batch did not
+finish" — and `final_run_summary.json`, rebuilt from those logs by `make_summary.py`.
+
+**Prefer it to a hand-run `compare.py` after any change that moves a printed QC
+number.** The summary and the manifest are *derived* artifacts that no pipeline stage
+writes, so a bare re-run refreshes the figures and leaves the numbers of record stale
+beside them — which is exactly what happened after the closure fix below: the plots were
+current while `final_run_summary.json` still quoted the pre-fix `meas/pred = 1.51`.
+Batching the sweep and the summary into one command is what stops them separating.
+
+Individual channels, if you need one:
+
+```powershell
+& C:\Users\remys\miniconda3\python.exe compare.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
 & C:\Users\remys\miniconda3\python.exe compare.py --mode muon --save-plots --no-show --overwrite `
     --input ..\preprocessing\preprocessing_results\triage\run00270_ch9_triage_results\run00270_ch9_clean.h5
-& C:\Users\remys\miniconda3\python.exe compare.py --mode muon --save-plots --no-show --overwrite `
-    --input ..\preprocessing\preprocessing_results\triage\run00270_ch10_triage_results\run00270_ch10_clean.h5
 ```
 
 `--mode` is **provenance, not shape**: whether a gamma/muon cut is meaningful is a
