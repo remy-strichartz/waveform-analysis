@@ -1984,25 +1984,49 @@ def spectrum_landmarks(centers, smoothed, median_val: float, overlap: int,
     22.8%), because once below the floor the strict descent slides down ch0's flat gamma
     plateau into the inter-gamma dip at ~0.16 whenever noise makes the plateau monotone.
 
+    PE-COMB GUARD (2026-07-14): on a resolved-photoelectron spectrum the walk above is
+    defeated by design -- every inter-PE dip passes the valley_max_frac bar and the PE
+    spacing exceeds the lookahead, so the walk stops one PE below the MIP peak (ch6
+    boxcar: "valley" 0.499, MPV 0.59).  When _comb_period detects the comb, ALL the
+    landmarks are found on a guide smoothed at half the comb period (a Gaussian of
+    sigma = period/2 attenuates the comb to < 1% while following its envelope), and the
+    valley is then snapped to the raw minimum nearby -- the guide smears the pedestal
+    cliff, and the pedestal/first-PE gap is comb-free so the raw minimum is trustworthy
+    there.  On a clean spectrum the detection stays silent and nothing changes.
+
     Keys keep the invariant gamma_peak <= valley <= muon_bump."""
     smoothed = np.asarray(smoothed, dtype=float)
     n = len(smoothed)
     floor_idx = int(np.clip(np.searchsorted(centers, 0.5 * median_val), 0, n - 1))
     muon_bump = floor_idx + int(np.argmax(smoothed[floor_idx:]))
 
-    bump_h = float(smoothed[muon_bump])
+    period = _comb_period(smoothed, muon_bump, overlap, config)
+    guide = smoothed
+    if period:
+        guide = gaussian_filter1d(smoothed, 0.5 * period)
+        muon_bump = floor_idx + int(np.argmax(guide[floor_idx:]))
+
+    bump_h = float(guide[muon_bump])
     floor5 = 0.05 * bump_h
     ceil_h = config.valley_max_frac * bump_h
     valley = muon_bump
-    while valley > 0 and smoothed[valley] >= floor5:
+    while valley > 0 and guide[valley] >= floor5:
         w_lo = max(valley - overlap, 0)
-        j = w_lo + int(np.argmin(smoothed[w_lo:valley]))
-        if smoothed[j] < smoothed[valley]:
+        j = w_lo + int(np.argmin(guide[w_lo:valley]))
+        if guide[j] < guide[valley]:
             valley = j
-        elif smoothed[valley] > ceil_h:
+        elif guide[valley] > ceil_h:
             valley = w_lo                  # still on the peak's flank: keep descending
         else:
             break
+
+    if period and valley < muon_bump:
+        # The guide smears the pedestal's cliff a few bins leftward; the gap between the
+        # pedestal and the first PE peak is itself comb-free, so the RAW minimum within
+        # half a period of the guide's valley is the true gap bottom.
+        w_lo = max(valley - period // 2, 0)
+        w_hi = min(valley + period // 2, muon_bump - 1)
+        valley = w_lo + int(np.argmin(smoothed[w_lo:w_hi + 1]))
 
     # gamma/noise feature at or below the valley -- seeds the low continuum and
     # bounds the crossover search.

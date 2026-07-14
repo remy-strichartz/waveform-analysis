@@ -90,11 +90,18 @@ Quoting rules established by measurement (2026-07-14):
   sits ~15% low (χ²=2.07 vs 0.99 clean) and `--exclude-pileup` does *not* reconcile
   it (0.543 → 0.533) — the raw line is fit-range/tail-model dominated, and its "cut"
   is a THIN-flagged threshold landmark.
-* **ch6's cuts are landmarks, not measurements**: both estimators' gamma models
-  misfit (χ² ≈ 8–10) and re-triggering at 3σ recovers the sub-floor band without
-  fixing the misfit — the low region is a genuinely non-Gaussian continuum. The
-  OF/boxcar disagreement (0.238 vs 0.458) is that misfit meeting two resolutions;
-  quote the OF number only as a landmark.
+* **ch4–ch7 are resolved-photoelectron spectra** (2026-07-14): these low-light
+  SiPM channels resolve single PE, so the *whole* spectrum — including the MIP
+  peak — is a periodic comb at the PE spacing (ch6: 0.2 of the MIP scale, i.e.
+  ~5 PE per MIP). The old "gamma" fits on these channels were fitting PE teeth,
+  and the valley walk stopped in an inter-PE dip (ch6 boxcar "valley" 0.499 with
+  the MPV at 0.59 — the Landau was fit on the top half of its own peak).
+  `spectrum_landmarks` now detects the comb (`_comb_period`, autocorrelation
+  dip-then-rebound, `comb_rho_min`) and finds landmarks on its envelope; clean
+  channels are measured bit-identical. ch6's old cuts (OF 0.238 / boxcar 0.458)
+  were comb artifacts and are gone: the OF now refuses, the boxcar cut is the
+  pedestal threshold. A Landau over a resolved-PE comb honestly fits at
+  χ² ≈ 5–13 — that is the comb, not a fit problem.
 
 ### `--template-trim` A/B (2026-07-14, trim 0.1 vs 0, all 13 datasets)
 
