@@ -121,7 +121,20 @@ def optimal_filter_resolution(prep: P.Prepared, psd: np.ndarray, config: P.Confi
     sigma_A = (sum_f |S|^2/N)^-1/2, against the MEASURED spread of the same
     estimator evaluated on pulse-free baseline windows.  Agreement (ratio ~ 1)
     validates that the template and the noise PSD together describe the data; a
-    mismatch points at a wrong PSD normalization or template scale."""
+    mismatch points at a wrong PSD normalization or template scale.
+
+    BOTH SIDES MUST DESCRIBE THE SAME EVENTS.  sigma_pred is derived from the
+    burst-TRIMMED PSD (noise_event_mask drops the ~1% interference-burst events,
+    because a mean PSD is outlier-dominated), so the measured spread is taken over
+    that same population.  It previously used a plain np.std over EVERY event --
+    itself outlier-dominated -- which compared two different populations and turned
+    the ~1% bursts into an apparent closure failure: run00270_ch0 reported
+    meas/pred = 1.51 ("the filter is 51% noisier than its model") where the
+    matched-population answer is 0.99.  The control is ch9, which has almost no
+    bursts and barely moves (0.94 -> 0.93).  Trimming the events is right here and
+    a robust (MAD) spread is NOT: the quantity being validated is the Gaussian
+    sigma of the ordinary population, and a MAD over the burst-contaminated set
+    reads 0.55 on ch0 -- it hides the bursts instead of excluding them."""
     L, _, weight, denom = _of_basis(prep, psd, config)
     sigma_pred = 1.0 / np.sqrt(denom)
     cap = min(prep.corrected.shape[0], config.psd_cap)
@@ -136,7 +149,9 @@ def optimal_filter_resolution(prep: P.Prepared, psd: np.ndarray, config: P.Confi
     n0 = L if stop >= 2 * L else 0
     noise_win = prep.corrected[:cap, n0:n0 + L].astype(np.float64)
     a_noise = np.real(np.fft.fft(noise_win, axis=1) @ weight) / denom
-    sigma_meas = float(np.std(a_noise))
+    # The PSD's own event mask, over the very rows the spread is measured on.
+    keep = P.noise_event_mask(prep.corrected[:cap], config)
+    sigma_meas = float(np.std(a_noise[keep]))
     return float(sigma_pred), sigma_meas
 
 

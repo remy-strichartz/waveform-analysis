@@ -57,6 +57,25 @@ pre-pulse region).
    `c0 + (A/A0)^2` clean trend — expected, not a defect), time-walk slope,
    amplitude-vs-area band, saturation/linearity, noise stationarity, baseline tilt.
 
+**Two invariants the diagnostics must hold to** (both were violated and fixed
+2026-07-14; a fix to an estimator has to land with the diagnostic that watches it):
+
+* **A diagnostic must describe the population the thing it validates was built
+  from.** The resolution closure compares `sigma_pred` (from the burst-**trimmed**
+  PSD) against the measured spread, so the spread is measured over that same
+  `noise_event_mask` population. Measuring it over every event with a plain `np.std`
+  — itself outlier-dominated — reported the ~1% interference bursts as a broken
+  noise model: ch0 read **meas/pred = 1.51** where the honest answer is **0.99**.
+* **Anything that measures pulse SHAPE or crest timing on the analog bank must
+  notch the pickup first.** `_peak_windows` (plots 13/15/17) now estimates its
+  picks and brightness cut on a notched guide and measures shape on it, the same
+  two-track scheme `build_template` uses. Un-notched it read the ~9.5-sample ripple
+  as pulse structure and faked an amplitude-dependent shape: ch1 FWHM Spearman
+  ρ −0.29 → **+0.01**, ch1 decay −0.39 → **−0.04**, ch0 rise −0.22 → **−0.05** (the
+  old "taller pulses rise faster / bandwidth-slew" reading was the pickup). The
+  line-free PMT ch9 is the control and does not move. See
+  `timewalk_report.shape_vs_amplitude` for the full trap.
+
 ## Production commands
 
 Results land in `energy_reconstruction_results/<mode>_mode/<stem>_compare_results/`

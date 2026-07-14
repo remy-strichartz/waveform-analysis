@@ -3988,31 +3988,59 @@ def print_qc(resolution: tuple[float, float] | None = None,
 # ===========================================================================
 
 def _peak_windows(prep: Prepared, config: Config, cap: int, bright_only: bool = False):
-    """Per-event (integer) windows cut on the half-max LEADING-EDGE pick -- the same
-    rough alignment build_template uses -- so these diagnostics view the pulses
-    close to how the template build does (an argmax cut re-phases coherent pickup
-    into averaged / PCA'd shapes; see build_template).  On channels with detected
-    pickup lines the template build additionally estimates its picks on a notched
-    guide copy; these diagnostics keep the plain raw pick.  Optionally only bright
-    pulses.  Returns (windows, per-row peak index within the window)."""
+    """Per-event (integer) windows cut on the half-max LEADING-EDGE pick, with every
+    pick and the brightness selection estimated on a pickup-NOTCHED guide copy -- the
+    same two-track scheme build_template uses -- so these diagnostics view the pulses
+    exactly as the template build does (an argmax cut, or an un-notched pick, re-phases
+    coherent pickup into the averaged / PCA'd shapes; see build_template).  Optionally
+    only bright pulses.  Returns (windows, per-row peak index within the window, guide),
+    where `guide` is the notched copy of the same rows -- and IS `windows` itself on a
+    channel with no detectable line, so such channels are bit-identical to the old
+    behaviour.
+
+    MEASURE SHAPE ON THE GUIDE; AVERAGE/ALIGN THE RAW ROWS (whose shape is never
+    filtered) USING SHIFTS ESTIMATED FROM IT.  The notch is not cosmetic: on the analog
+    bank the ~9.5-sample pickup rides the slow rising edge and the crest, so the raw peak
+    sits on a ripple crest and the raw 10-90 / FWHM / decay crossings read the ripple as
+    pulse structure.  Un-notched, that fakes an amplitude-dependent pulse shape on
+    channels whose pulses are in fact shape-constant -- measured on run00270, Spearman rho
+    raw -> notched: ch1 FWHM -0.29 -> +0.01 and decay -0.39 -> -0.04; ch0 rise -0.22 ->
+    -0.05 (the "taller pulses rise faster" trend was the pickup, not slew).  The control is
+    the line-free PMT ch9, which does not move (+0.02 / -0.03 / -0.05 raw vs +0.02 / -0.01
+    / -0.03 notched), so the notch is not distorting pulses.  What survives on ch1 is a
+    residual rise trend (-0.24): the 10-90% crossings of DIM pulses are genuinely
+    noise-inflated, which is a property of the measurement at low SNR, not a shape trend --
+    read it off the median profile, not the rho.  Same measurement, same reasoning as
+    timewalk_report.shape_vs_amplitude, whose docstring has the full trap."""
     pk = prep.events["peak_index"].to_numpy()
     pre, post = config.template_pre, config.template_post
     length = prep.corrected.shape[1]
     sub = triggered(prep)
-    starts = _halfmax_starts(sub, pk, pre)
+    # Guide construction copied from build_template: lines detected in the pre-pulse
+    # region, notched out of a copy that the picks and the brightness cut run on.
+    lines = (_pickup_lines(sub[:, :search_region(length, config).start],
+                           config.align_notch_snr)
+             if config.align_notch_snr > 0 else [])
+    guide = _notch_rows(sub, lines) if lines else sub
+    starts = _halfmax_starts(guide, pk, pre)
     width = pre + post
     fits = (starts >= 0) & (starts + width <= length)
     sub, starts, pk = sub[fits], starts[fits], pk[fits]
-    win = sub[np.arange(sub.shape[0])[:, None], starts[:, None] + np.arange(width)[None, :]]
+    take = starts[:, None] + np.arange(width)[None, :]
+    rows = np.arange(sub.shape[0])[:, None]
+    win = sub[rows, take]
+    gwin = guide[fits][rows, take] if lines else win
     pk_in = pk - starts
     if bright_only:
-        keep = win.max(axis=1) > config.template_sigma * prep.noise_sigma
+        keep = gwin.max(axis=1) > config.template_sigma * prep.noise_sigma
         if int(keep.sum()) >= 50:
             win, pk_in = win[keep], pk_in[keep]
+            gwin = gwin[keep] if lines else win
     if win.shape[0] > cap:
         sel = np.random.default_rng(config.seed).choice(win.shape[0], cap, replace=False)
         win, pk_in = win[sel], pk_in[sel]
-    return win, pk_in
+        gwin = gwin[sel] if lines else win
+    return win, pk_in, gwin
 
 
 def _cross(y: np.ndarray, level: float, start: int, rising: bool) -> float:
@@ -4037,11 +4065,16 @@ def _cross(y: np.ndarray, level: float, start: int, rising: bool) -> float:
 
 
 def _shape_param_arrays(prep: Prepared, config: Config, cap: int) -> dict[str, np.ndarray]:
-    """Per-event peak amplitude plus RAW shape parameters (10-90% rise, FWHM, 1/e
-    decay time from the peak), row-aligned, NaN where a crossing is undefined.  The
-    single measurement loop behind pulse_shape_params and pulse_shape_vs_amplitude,
-    which differ only in how they filter the arrays."""
-    win, pks = _peak_windows(prep, config, cap)
+    """Per-event peak amplitude plus shape parameters (10-90% rise, FWHM, 1/e decay
+    time from the peak), row-aligned, NaN where a crossing is undefined.  The single
+    measurement loop behind pulse_shape_params and pulse_shape_vs_amplitude, which
+    differ only in how they filter the arrays.
+
+    Measured on the pickup-NOTCHED guide, not the raw window: the raw peak (which
+    normalizes every crossing here) rides a ripple crest and the crossings read the
+    ripple as pulse structure -- see _peak_windows for the measured size of that
+    artifact.  On a line-free channel the guide IS the raw window."""
+    _, pks, win = _peak_windows(prep, config, cap)
     amp, rise, fwhm, decay = [], [], [], []
     for w, pk in zip(win, pks):
         m = w.max()
@@ -4101,7 +4134,7 @@ def plot_shape_params(prep: Prepared, config: Config, name="13_shape_params") ->
         ax.legend(); ax.grid(True, alpha=0.3)
         if lo is not None:      # explicit, so the template marker can't re-stretch the axis
             ax.set_xlim(min(lo, ref[key]), max(hi, ref[key]))
-    fig.suptitle("Pulse-shape parameter distributions", fontsize=13)
+    fig.suptitle("Pulse-shape parameter distributions  (pickup-notched)", fontsize=13)
     fig.tight_layout()
     _finish(fig, name, config)
 
@@ -4110,12 +4143,16 @@ def pulse_shape_vs_amplitude(prep: Prepared, config: Config, cap: int = 8000) ->
     """Per-event pulse-shape params (rise / FWHM / 1/e decay) paired ROW-ALIGNED with
     the pulse amplitude, so shape can be correlated with pulse height.
 
-    Amplitude is each window's OWN peak height (ADC, baseline-subtracted, oriented up)
-    -- the very value that normalizes the shape measurement -- so a decay time set by
-    the electronics/scintillator time constants shows up as amplitude-independent,
-    while one that tracks pulse height shows a trend.  Unlike pulse_shape_params (which
-    filters each parameter separately), all four arrays here share one finite mask and
-    stay row-aligned for the correlation."""
+    Amplitude is each window's OWN peak height (ADC, baseline-subtracted, oriented up,
+    pickup-notched) -- the very value that normalizes the shape measurement -- so a decay
+    time set by the electronics/scintillator time constants shows up as
+    amplitude-independent, while one that tracks pulse height shows a trend.  Unlike
+    pulse_shape_params (which filters each parameter separately), all four arrays here
+    share one finite mask and stay row-aligned for the correlation.
+
+    The notch is what makes the answer trustworthy on the analog bank; without it this
+    function reports the pickup ripple as an amplitude-dependent pulse shape (see
+    _peak_windows)."""
     out = _shape_param_arrays(prep, config, cap)
     good = np.isfinite(out["amp"]) & (out["amp"] > 0)
     for k in ("rise", "fwhm", "decay"):
@@ -4133,7 +4170,11 @@ def plot_shape_vs_amplitude(prep: Prepared, config: Config, name="15_shape_vs_am
     value (brick-red dashed) overlaid, and the Spearman rank correlation in the title.  A FLAT
     profile / |rho| ~ 0 => the parameter is amplitude-independent (set by the shaping /
     scintillator time constants); a sloped profile / large |rho| => it is amplitude-
-    correlated (e.g. amplitude-dependent shaping, or saturation stretching the tail)."""
+    correlated (e.g. amplitude-dependent shaping, or saturation stretching the tail).
+
+    Measured on pickup-notched pulses (_peak_windows).  Read the raw-vs-notched numbers
+    there before trusting any rho this plot ever printed un-notched: the ripple alone is
+    worth rho ~ -0.2 to -0.4 on the analog channels."""
     d = pulse_shape_vs_amplitude(prep, config)
     amp = d["amp"]
     ref = _template_shape_ref(prep.template)
@@ -4182,8 +4223,8 @@ def plot_shape_vs_amplitude(prep: Prepared, config: Config, name="15_shape_vs_am
         ax.set_ylim(y_lo, y_hi)
         ax.legend(fontsize=8, loc="best"); ax.grid(True, alpha=0.3)
         fig.colorbar(hb, ax=ax, label="log₁₀ count")
-    fig.suptitle("Pulse-shape parameters vs amplitude  (flat profile = constant; sloped = amplitude-correlated)",
-                 fontsize=13)
+    fig.suptitle("Pulse-shape parameters vs amplitude, pickup-notched  "
+                 "(flat profile = constant; sloped = amplitude-correlated)", fontsize=13)
     fig.tight_layout()
     _finish(fig, name, config)
 
@@ -4333,10 +4374,18 @@ def plot_template_stability(prep: Prepared, config: Config, name="17_template_st
     The windows are sub-sample aligned to the analysis template with the same
     cross-correlation tool build_template uses (align_windows), so the halves and
     the PCA see the pulses exactly as the template build does -- jitter broadening
-    would otherwise masquerade as shape variation in both."""
-    win, _ = _peak_windows(prep, config, cap=config.template_cap, bright_only=True)
+    would otherwise masquerade as shape variation in both.  That equivalence is why
+    the shifts are estimated on the pickup-notched GUIDE and applied to the raw rows
+    (align_windows(guide=...)), exactly as build_template does: aligning on the raw
+    pulses locks the halves and the PCA to the pickup phase, which would validate an
+    alignment path the pipeline stopped using.  The rows that get averaged and
+    decomposed are the RAW ones, so the residual variance still contains the real
+    pickup structure riding on the tail -- that is a property of the pulses, and the
+    template build's own spread (template_std) carries it too."""
+    win, _, guide = _peak_windows(prep, config, cap=config.template_cap, bright_only=True)
     aligned, _ = align_windows(win, template=prep.template, iters=1,
-                               max_lag=config.align_lag)
+                               max_lag=config.align_lag,
+                               guide=None if guide is win else guide)
     norm = aligned / aligned.max(axis=1, keepdims=True)
     pk = int(np.argmax(prep.template))
     rel = np.arange(-pk, norm.shape[1] - pk)
