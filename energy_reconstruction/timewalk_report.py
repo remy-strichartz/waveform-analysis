@@ -51,13 +51,21 @@ What it runs, per channel:
              * the split SURVIVES width matching (bright MEDIAN, FWHM 58.0 vs dim 58.6,
                still walks -2.45 vs -1.08) and a 0-3 sample smear scan (-2.45 -> -2.35),
                so bulk width and smearing are out;
-             * what remains: after removing a walk-NEUTRAL ~1.7-sample window-phase
-               offset, the dim- and bright-built median templates agree to <~0.7% of peak
-               everywhere EXCEPT the EARLY TAIL (+3..+60 samples past the peak, largest
-               ~+18, 1.7% of peak) -- the reflection/afterpulse region.  A small
-               amplitude-correlated tail structure is the live suspect; note the band
-               stacks' decay-side drift is ~1 sample and its SIGN differs between ch1 and
-               ch2, so whatever it is, it is small and channel-dependent.
+             * after removing a walk-NEUTRAL ~1.7-sample window-phase offset, the dim-
+               and bright-built median templates agree to <~0.7% of peak everywhere
+               EXCEPT the EARLY TAIL (+3..+60 samples past the peak, largest ~+18, 1.7%
+               of peak) -- but that tail structure is REFUTED as the walk's driver: the
+               band-stacked early-tail amplitude trend, measured across 8 channels, does
+               not correlate with the shipped walk (Pearson -0.34 / Spearman -0.26;
+               signs inconsistent -- ch0 walks -1.18 with a zero tail trend, ch3 has the
+               strongest tail trend and the smallest walk).
+           So the swap effect's operative template difference is real, reproducible,
+           and still UNIDENTIFIED after noise, smear, width, subset size, contamination
+           and early-tail content were each individually matched or refuted.  One gap
+           worth noting for the next attempt: the CLOSURE test certifies the estimator
+           on GAUSSIAN colored noise -- a walk arising from the interplay of the real
+           (non-Gaussian, burst/pickup-phase) noise with different template fine
+           structure would evade it.
 
   SHAPE    pulse shape per amplitude band, template-free, WITH THE PICKUP NOTCHED OUT
            (see shape_vs_amplitude -- notching is not optional; un-notched, this panel lies).

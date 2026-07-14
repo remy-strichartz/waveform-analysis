@@ -132,13 +132,17 @@ still open:
   **early tail** (+3…+60 samples past the peak, ~1.7% of peak at ~+18) between
   dim- and bright-built templates. The SHAPE panel now also measures FWHM and the
   decay-side half-widths (notched) to keep this visible.
+* **Also killed (2026-07-14, later)**: the early-tail structure as the walk's
+  *driver* — band-stacked early-tail trends across 8 channels do not correlate
+  with the shipped walk (Pearson −0.34, Spearman −0.26, inconsistent signs).
 * **Open**: the *cause* of the real, small (−2.3…−3.7 samples over each channel's
-  amplitude range) walk is unknown but tightly cornered: the live suspect is a
-  small amplitude-correlated early-tail structure (afterpulsing / crosstalk /
-  reflections). Next measurement: band-stacked early-tail residuals (notched,
-  vs the band's own median template) across channels, and whether a
-  trimmed-mean `build_template` (which would also remove the mean-broadening
-  artifact) changes the shipped walk.
+  amplitude range) walk is unknown. Every bulk template property has been matched
+  or refuted; the dim/bright template difference that moves the walk is real but
+  unidentified. Known gap for the next attempt: the closure test certifies the
+  estimator on *Gaussian* colored noise only — a real-noise (burst / pickup-phase)
+  interaction with template fine structure would evade it. An opt-in
+  `--template-trim` exists for the separately-measured mean-broadening artifact
+  (A/B'd; see git history).
   The walk is harmless for amplitude reconstruction (well under the timing jitter,
   and the OF amplitude is evaluated at the trigger's own time), so no correction is
   applied in the pipeline — `timewalk_slope` is a QC number, not a calibration.
