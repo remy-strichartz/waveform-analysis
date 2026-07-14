@@ -167,4 +167,6 @@ still open:
 & C:\Users\remys\miniconda3\python.exe timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
 ```
 
-Its figures land in `energy_reconstruction_results/<stem>_timewalk_results/`.
+Its figures land in `energy_reconstruction_results/timewalk/<stem>_timewalk_results/`.
+It has no analysis mode, so it is grouped in its own `timewalk/` subfolder rather than
+under a `<mode>_mode/` one (the same convention as `preprocessing_results/triage/`).

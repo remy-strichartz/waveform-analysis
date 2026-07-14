@@ -213,5 +213,6 @@ every other event is judged against.  The gate needs a time axis: `/event_time_r
 the input (there by default since the converter change), else `--times`.
 
 Outputs: `time_1_clock.png`, `time_2_rate.png`, `<stem>_timing.json` in
-`<stem>_times_results[_N]/`; `stab_1_gain.png`, `<stem>_stability.json` (with
-`bad_windows_h`) in `<stem>_stability_results[_N]/`.
+`timing_stability_results/times/<stem>_times_results[_N]/`; `stab_1_gain.png`,
+`<stem>_stability.json` (with `bad_windows_h`) in
+`timing_stability_results/stability/<stem>_stability_results[_N]/`.

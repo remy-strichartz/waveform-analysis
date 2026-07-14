@@ -565,7 +565,11 @@ def main() -> None:
     args = P.build_arg_parser("Diagnose the residual optimal-filter time-walk.").parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level),
                         format="%(levelname)s %(name)s: %(message)s")
-    analyze(P.config_from_args(args, script_file=__file__, program="timewalk"))
+    # `group` keeps this QC report's per-run folders together in
+    # energy_reconstruction_results/timewalk/ instead of loose beside the drivers'
+    # <mode>_mode/ folders: it has no analysis mode, so it is not mode-routed.
+    analyze(P.config_from_args(args, script_file=__file__, program="timewalk",
+                               group="timewalk"))
 
 
 if __name__ == "__main__":
