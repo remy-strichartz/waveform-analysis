@@ -687,7 +687,7 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
 
 
 def config_from_args(args, script_file: str | None = None, program: str | None = None,
-                     group: str | None = None) -> Config:
+                     group: str | None = None, shared: bool = False) -> Config:
     """Build a Config from the shared CLI args (input resolved against waveform_files/).
 
     `script_file` / `program` identify the CALLING driver so its plots land in that
@@ -699,7 +699,10 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
     caller's program subfolder of its default results base (timewalk_report ->
     energy_reconstruction_results/timewalk/, run_stability -> timing_stability_results/
     stability/); like the <mode>_mode level it keeps programs sharing one results folder
-    apart, but it is skipped under an explicit --output-dir.
+    apart, but it is skipped under an explicit --output-dir.  `shared` keys the per-run
+    folder on the DATASET instead of the input file (timewalk_report: one
+    run00270_timewalk_results/ holding every channel's report) -- see resolve_results_dir;
+    a driver that asks for it must name its plots after the channel.
     """
     kwargs: dict[str, Any] = {"show_plots": not args.no_show, "save_plots": args.save_plots,
                               "full_diagnostics": args.full_diagnostics}
@@ -736,7 +739,7 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
         base = base / group
     kwargs["output_dir"] = resolve_results_dir(
         script_file or __file__, kwargs["input_path"].stem,
-        base=base, program=program,
+        base=base, program=program, shared=shared,
         overwrite=getattr(args, "overwrite", False))
     if args.trigger_sigma is not None: kwargs["trigger_sigma"] = args.trigger_sigma
     if getattr(args, "template_sigma", None) is not None: kwargs["template_sigma"] = args.template_sigma

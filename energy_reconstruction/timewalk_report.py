@@ -558,18 +558,25 @@ def plot_timewalk_report(c, m, e, fits, scan, closure, swap, shape, config: P.Co
         ax.legend(fontsize=7); ax.grid(alpha=0.3)
     fig.suptitle(f"Time-walk report -- {config.input_path.stem}", fontsize=13)
     fig.tight_layout()
-    P._finish(fig, "17_timewalk_report", config)
+    # The channel goes in the FILE name because it is no longer in the folder name: one
+    # report is this program's entire output for a channel, so all of a run's channels
+    # share one folder (see main()) and their files must tell themselves apart.
+    P._finish(fig, f"{config.input_path.stem}_timewalk_report", config)
 
 
 def main() -> None:
     args = P.build_arg_parser("Diagnose the residual optimal-filter time-walk.").parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level),
                         format="%(levelname)s %(name)s: %(message)s")
-    # `group` keeps this QC report's per-run folders together in
-    # energy_reconstruction_results/timewalk/ instead of loose beside the drivers'
-    # <mode>_mode/ folders: it has no analysis mode, so it is not mode-routed.
+    # `group` keeps this QC report's folders together in energy_reconstruction_results/
+    # timewalk/ instead of loose beside the drivers' <mode>_mode/ folders: it has no
+    # analysis mode, so it is not mode-routed.  `shared` then puts every channel of one run
+    # in ONE folder there -- <dataset>_timewalk_results/, e.g. run00270_timewalk_results/ --
+    # because a channel's whole output here is a single figure, and eleven folders holding
+    # one plot each are eleven clicks to compare the bank.  A new dataset gets its own
+    # folder automatically (the name comes from the input).
     analyze(P.config_from_args(args, script_file=__file__, program="timewalk",
-                               group="timewalk"))
+                               group="timewalk", shared=True))
 
 
 if __name__ == "__main__":

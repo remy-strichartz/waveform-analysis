@@ -205,9 +205,15 @@ still open:
   applied in the pipeline — `timewalk_slope` is a QC number, not a calibration.
 
 ```powershell
-& C:\Users\remys\miniconda3\python.exe timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
+& C:\Users\remys\miniconda3\python.exe timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show
 ```
 
-Its figures land in `energy_reconstruction_results/timewalk/<stem>_timewalk_results/`.
-It has no analysis mode, so it is grouped in its own `timewalk/` subfolder rather than
-under a `<mode>_mode/` one (the same convention as `preprocessing_results/triage/`).
+A channel's whole output here is ONE figure, so a run's channels share ONE folder —
+`energy_reconstruction_results/timewalk/<dataset>_timewalk_results/`, holding
+`<stem>_timewalk_report.png` per channel (`run00270_timewalk_results/` holds all eleven,
+`run00270_ch7_clean` included). Any other dataset gets its own folder under its own name,
+automatically. Unlike the compare folders this one is never `_N` versioned — it
+accumulates, and re-running a channel replaces that channel's plot (`--overwrite` is
+therefore a no-op for this program). It has no analysis mode, so it is grouped in its own
+`timewalk/` subfolder rather than under a `<mode>_mode/` one (the same convention as
+`preprocessing_results/triage/`).
