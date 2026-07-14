@@ -4,8 +4,9 @@ Amplitude ("energy") reconstruction for the scintillator-panel waveform data, bu
 for real colored noise and real pulses — no injected truth. One shared library
 (`mv_pipeline.py`) plus three thin drivers and one standalone QC report.
 
-Run everything with the miniconda python (the bare `python` on this machine has no
-h5py): `C:\Users\remys\miniconda3\python.exe`.
+Dependencies: `pip install -r requirements.txt` from the repo root. scipy >= 1.16 is a hard
+floor — `scipy.stats.landau` is what fits the MIP line. (On the analysis machine the deps
+live in miniconda rather than the bare `python` on PATH; see the root README.)
 
 ## Files
 
@@ -87,9 +88,9 @@ fresh `_N` suffix).
 **Re-run the whole thing with `run_batch.py`** — 11 gamma-muon compares, the two
 triage-cleaned PMT exports in muon mode, 11 timewalk reports (~80 min):
 
-```powershell
-& C:\Users\remys\miniconda3\python.exe run_batch.py            # the canonical sweep
-& C:\Users\remys\miniconda3\python.exe run_batch.py --dry-run  # list jobs, check inputs
+```bash
+python run_batch.py            # the canonical sweep
+python run_batch.py --dry-run  # list jobs, check inputs
 ```
 
 It writes the *record*, not just the plots: `logs/<job>.log`, `logs/manifest.txt`
@@ -106,9 +107,9 @@ Batching the sweep and the summary into one command is what stops them separatin
 
 Individual channels, if you need one:
 
-```powershell
-& C:\Users\remys\miniconda3\python.exe compare.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
-& C:\Users\remys\miniconda3\python.exe compare.py --mode muon --save-plots --no-show --overwrite `
+```bash
+python compare.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
+python compare.py --mode muon --save-plots --no-show --overwrite `
     --input ..\preprocessing\preprocessing_results\triage\run00270_ch9_triage_results\run00270_ch9_clean.h5
 ```
 
@@ -155,8 +156,8 @@ analysis breakpoint (one commit + one full batch re-run), not mid-comparison.
 
 ## Tests
 
-```powershell
-& C:\Users\remys\miniconda3\python.exe tests\test_energy_reconstruction.py
+```bash
+python tests\test_energy_reconstruction.py
 ```
 
 Synthetic end-to-end regression suite (trigger completeness, row alignment through
@@ -204,8 +205,8 @@ still open:
   and the OF amplitude is evaluated at the trigger's own time), so no correction is
   applied in the pipeline — `timewalk_slope` is a QC number, not a calibration.
 
-```powershell
-& C:\Users\remys\miniconda3\python.exe timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show
+```bash
+python timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show
 ```
 
 A channel's whole output here is ONE figure, so a run's channels share ONE folder —
