@@ -94,7 +94,7 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter1d
 from scipy.optimize import curve_fit
 from scipy.special import erf
-from scipy.stats import landau, rankdata
+from scipy.stats import landau, rankdata, trim_mean
 
 # The shared triage primitives -- flat-top saturation detector, polarity vote and
 # median-pulse extent rule -- live in waveform_triage, so this pipeline calls an
@@ -151,6 +151,14 @@ class Config:
     template_post: int = 250  # captures decay to ~sample 700 where tail reaches baseline
     template_cap: int = 20_000
     template_sigma: float = 8.0            # bright events used to build a clean template
+    # Opt-in ROBUST final template average: trim this fraction from EACH per-sample tail
+    # of the aligned pulses before averaging (scipy.stats.trim_mean); 0 (default) keeps
+    # the long-standing plain mean.  Motivation (measured 2026-07-14, run00270_ch2): the
+    # plain mean is pulled ~4 samples WIDER in FWHM by a minority tail of events
+    # (unresolved pileup / afterpulses, bright-biased) that the median of the SAME
+    # aligned rows does not see.  A/B before adopting as default: it moves the template,
+    # so it moves every canonical number.  See build_template.
+    template_trim: float = 0.0
     align_iters: int = 3
     align_lag: int = 6   # covers the tails of the half-max rough alignment (~1 sample RMS)
     # Narrow noise lines (run00270's 9.4-sample pickup) at >= this many times the local
@@ -592,6 +600,12 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--template-sigma", type=float, default=None,
                    help="Brightness cut (in units of the baseline noise sigma) for the pulses "
                         "averaged into the template. Default: 8.")
+    p.add_argument("--template-trim", type=float, default=None,
+                   help="Opt-in robust template average: trim this fraction from EACH "
+                        "per-sample tail of the aligned pulses before averaging (0.1 is a "
+                        "sensible A/B value). Removes the mean-broadening a minority tail of "
+                        "pileup/afterpulse events causes. Default: 0 (plain mean, the "
+                        "long-standing behaviour).")
     p.add_argument("--psd-trim-sigma", type=float, default=None,
                    help="Robustness of the noise model: events whose log pre-pulse power "
                         "exceeds median + N MAD sigma are treated as interference bursts and "
@@ -709,6 +723,7 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
         overwrite=getattr(args, "overwrite", False))
     if args.trigger_sigma is not None: kwargs["trigger_sigma"] = args.trigger_sigma
     if getattr(args, "template_sigma", None) is not None: kwargs["template_sigma"] = args.template_sigma
+    if getattr(args, "template_trim", None) is not None: kwargs["template_trim"] = args.template_trim
     if getattr(args, "psd_trim_sigma", None) is not None: kwargs["psd_trim_sigma"] = args.psd_trim_sigma
     if getattr(args, "min_mip_snr", None) is not None: kwargs["min_mip_snr"] = args.min_mip_snr
     if getattr(args, "min_mip_over_trigger", None) is not None:
@@ -1199,6 +1214,12 @@ def build_template(corrected: np.ndarray, noise_sigma: float, config: Config):
     aligned, template = align_windows(windows, iters=config.align_iters,
                                       max_lag=config.align_lag,
                                       guide=guide[idx[:, None], take] if lines else None)
+    if config.template_trim > 0:
+        # Opt-in robust FINAL average (Config.template_trim): the plain mean is pulled
+        # wider by a minority tail of events; per-sample trimming removes exactly that
+        # while keeping mean-like noise averaging.  Only the final template changes --
+        # the alignment iterations keep their plain-mean reference.
+        template = trim_mean(aligned, min(float(config.template_trim), 0.45), axis=0)
     core = slice(pad, pad + width)
     template = template[core]
     relative = np.arange(-config.template_pre, config.template_post, dtype=float)
