@@ -561,6 +561,9 @@ def parse_args() -> argparse.Namespace:
                         "timing_stability_results/times/<input-stem>_times_results[_N]/ "
                         "(the recovered <stem>_times.h5 stays in waveform_files/, in its "
                         "run's times/ folder).")
+    p.add_argument("--overwrite", action="store_true",
+                   help="Write into <input-stem>_times_results/ even if it exists, overwriting "
+                        "the previous run's figures. Default: a re-run gets a fresh _N folder.")
     p.add_argument("--selftest", action="store_true",
                    help="Run the synthetic closure test instead of analysing a file.")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
@@ -593,7 +596,8 @@ def main() -> None:
     out_path = resolve_output(args.output, f"{input_path.stem}_times.h5",
                               into=run_dir(input_path))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    outdir = resolve_results_dir(__file__, input_path.stem, program="times", group="times")
+    outdir = resolve_results_dir(__file__, input_path.stem, program="times", group="times",
+                                 overwrite=args.overwrite)
 
     ttt, wall, word, bank, sei = load_inputs(input_path, mid_path, args.ttt_word)
     rec = recover(ttt, wall)

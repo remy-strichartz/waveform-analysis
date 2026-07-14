@@ -199,7 +199,9 @@ python run_stability.py --input run00270_ch0.h5 --save-plots --bad-noise-factor 
 
 `run_stability` recovers the time axis itself if `<stem>_times.h5` is missing (same
 computation, minus the clock QC plots and the run-level analysis).  For older
-conversions lacking `/event_time_unix`, pass `--mid run00270.mid`.
+conversions lacking `/event_time_unix`, pass `--mid run00270.mid`.  Both drivers take
+`--overwrite` to refresh a channel's results folder in place; without it a re-run gets
+a fresh `_N` folder beside the old one.
 
 To act on a flagged window, in **any** energy_reconstruction driver:
 
