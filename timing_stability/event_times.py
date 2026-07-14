@@ -41,8 +41,11 @@ BIAS GUARDS
   * Exponential and uniformity KS tests use Monte-Carlo p-values (the rate is
     estimated from the same sample, so textbook KS tables would be
     anti-conservative).
-  * Every wrap decision carries a margin; marginal decisions and rollover-sized
-    residuals are counted and plotted, so a silent unwrap failure cannot pass.
+  * Every wrap decision carries a margin; marginal decisions and residuals beyond
+    the wall clock's truncation-plus-latency budget (clock_recovery.RESID_FAIL_S)
+    are counted and plotted.  (Rounding bounds every residual at half a rollover
+    BY CONSTRUCTION, so a half-rollover test would be vacuous; the per-run drift
+    band is the complementary check.)
   * --selftest runs the identical code path on synthetic (TTT, wall-clock) pairs
     with known truth -- including a long DAQ dropout and readout latency jitter --
     and fails loudly if the recovered times are off.
@@ -77,8 +80,10 @@ from scipy.stats import kstest, spearmanr
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "file_manipulation"))
 import midas_to_h5 as midas  # noqa: E402  (reuse the house MIDAS parser)
-from clock_recovery import choose_ttt_word, recover  # noqa: E402
-from output_paths import resolve_input, resolve_results_dir, run_dir  # noqa: E402
+from clock_recovery import (RESID_FAIL_S, choose_ttt_word,  # noqa: E402
+                            recover, valid_header_rows)
+from output_paths import (resolve_input, resolve_output,  # noqa: E402
+                          resolve_results_dir, run_dir)
 
 logger = logging.getLogger("event_times")
 
@@ -129,6 +134,18 @@ def load_inputs(input_path: Path, mid_path: Path | None, ttt_word: int | None):
                if "source_event_index" in h5 else None)
         wall_ds = (np.asarray(h5["event_time_unix"][()], dtype=np.int64)
                    if "event_time_unix" in h5 else None)
+    # An all-zero header row is an event whose header bank was missing at
+    # conversion (the converter zero-fills to keep row alignment).  Its fake
+    # tag would corrupt two intervals and permanently offset every later
+    # event's time, so refuse LOUDLY rather than recover a silently wrong axis.
+    n_zero = int(np.sum(~valid_header_rows(hdr)))
+    if n_zero:
+        raise SystemExit(
+            f"{n_zero} of {len(hdr)} events have an all-zero header row (missing "
+            "header bank at conversion); their fake tags would corrupt the "
+            "recovery. Re-convert or re-extract with the current file_manipulation "
+            "tools, which exclude such rows and fill their times from the wall "
+            "clock -- the converted file then carries /event_time_rel_s already.")
     word = choose_ttt_word(hdr, ttt_word)
     ttt = hdr[:, word]
 
@@ -447,7 +464,8 @@ def print_summary(rec, ast: dict | None, rb: dict | None, n_events: int) -> None
     print(f"Rollover period            : {rec['period_s']:.3f} s")
     print(f"Rollovers resolved         : {rec['n_wraps_total']:,}")
     print(f"Marginal wrap decisions    : {rec['n_marginal']}  (|margin| > 0.35)")
-    print(f"Failed wrap decisions      : {rec['n_fail']}  (|resid| > half rollover)")
+    print(f"Failed wrap decisions      : {rec['n_fail']}  (|resid| > {RESID_FAIL_S:g} s "
+          f"wall budget)")
     print(f"Residual band (95%)        : [{rec['eps_band_s'][0]:+.2f}, "
           f"{rec['eps_band_s'][1]:+.2f}] s vs wall clock")
     if ast is None:
@@ -534,13 +552,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ttt-word", type=int, default=None,
                    help="Header word holding the trigger time tag. Default: auto-detect.")
     p.add_argument("--output", type=Path, default=None,
-                   help="Output .h5 (default: waveform_files/<input-stem>_times.h5).")
+                   help="Output .h5 (default: the run's own recovered time axis, "
+                        "waveform_files/<run>/times/<input-stem>_times.h5).")
     p.add_argument("--no-show", "--no-plot", dest="no_show", action="store_true",
                    help="Do not open plot windows.")
     p.add_argument("--save-plots", action="store_true",
-                   help="Save the figures + <stem>_timing.json to "
-                        "timing_stability/timing_stability_results/<input-stem>_times_results[_N]/ "
-                        "(the recovered <stem>_times.h5 stays in waveform_files/).")
+                   help="Save the figures + <stem>_timing.json to timing_stability/"
+                        "timing_stability_results/times/<input-stem>_times_results[_N]/ "
+                        "(the recovered <stem>_times.h5 stays in waveform_files/, in its "
+                        "run's times/ folder).")
     p.add_argument("--selftest", action="store_true",
                    help="Run the synthetic closure test instead of analysing a file.")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
@@ -548,7 +568,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _resolve(path: Path | None) -> Path | None:
-    """Bare name -> waveform_files/ (and its per-run folders); explicit path -> as given."""
+    """Bare name -> wherever waveform_files/ keeps it; explicit path -> as given."""
     return None if path is None else resolve_input(path)
 
 
@@ -567,12 +587,13 @@ def main() -> None:
     input_path = _resolve(args.input)
     mid_path = _resolve(args.mid)
     # The recovered-clock .h5 is a SHARED intermediate that run_stability (and every other
-    # channel) looks up by name, so it belongs with the waveform files -- specifically BESIDE
-    # the file it was recovered from, in that run's folder (find_related looks there first).
+    # channel) looks up by name, so it belongs with the waveform files -- specifically in the
+    # times/ folder of the run it was recovered from, which is where find_related looks.
     # Only the figures and the run-level JSON go into this run's results folder.
-    out_path = _resolve(args.output) or (run_dir(input_path) / f"{input_path.stem}_times.h5")
+    out_path = resolve_output(args.output, f"{input_path.stem}_times.h5",
+                              into=run_dir(input_path))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    outdir = resolve_results_dir(__file__, input_path.stem, program="times")
+    outdir = resolve_results_dir(__file__, input_path.stem, program="times", group="times")
 
     ttt, wall, word, bank, sei = load_inputs(input_path, mid_path, args.ttt_word)
     rec = recover(ttt, wall)

@@ -252,6 +252,14 @@ class Config:
     # fraction of the MIP bump height -- a flat spot high on the peak's own flank is not a
     # valley.  See the valley walk in fit_spectrum.
     valley_max_frac: float = 0.5
+    # PE-COMB GUARD on the landmark walk (see _comb_period).  A low-light SiPM channel
+    # resolves single photoelectrons, so its whole spectrum is modulated by a periodic
+    # comb whose inter-PE dips masquerade as valleys.  A comb is declared when the
+    # autocorrelation of the envelope-subtracted spectrum rebounds to at least this value
+    # at the comb period.  Measured on all run00270 + caen spectra (22 channel/estimator
+    # pairs): comb channels score 0.61-0.77, every clean channel <= 0.05 -- so 0.4 sits in
+    # an empty gap, and clean channels' landmarks are bit-identical with the guard on.
+    comb_rho_min: float = 0.4
     # Bootstrap replicates used to put an ERROR BAR on the gamma/muon cut (see
     # bootstrap_cut).  The cut has no analytic uncertainty -- it falls out of a valley walk,
     # a BIC mixture and an area balance -- so without this it is reported as a bare number
@@ -338,8 +346,8 @@ class Config:
     # timing_stability/run_stability.py finds and reports such windows (`bad_windows_h` in
     # its JSON, with the exact --exclude-hours line to paste); this is how you act on them.
     # The run-time axis comes from /event_time_rel_s in the input (written at conversion by
-    # file_manipulation/clock_recovery.py), else from `times_path`, else from
-    # waveform_files/<stem>_times.h5.
+    # file_manipulation/clock_recovery.py), else from `times_path`, else from the dataset's
+    # recovered axis, waveform_files/<run>/times/<stem>_times.h5.
     exclude_hours: tuple = ()
     times_path: Path | None = None
 
@@ -565,12 +573,13 @@ DEFAULT_OUTPUT_DIR   = _PROJECT_ROOT / "results"
 # Shared waveform-file and per-run results-folder conventions
 # (see file_manipulation/output_paths.py).
 sys.path.insert(0, str(_PROJECT_ROOT / "file_manipulation"))
-from output_paths import (find_related, program_token,  # noqa: E402
+from output_paths import (find_related, list_waveforms, program_token,  # noqa: E402
                           resolve_input, resolve_results_dir, results_base)
 
 # Drivers whose results are routed into a <mode>_mode subfolder (they have an analysis
-# mode).  run_stability shares this module's CLI/config builder but has no mode, so its
-# results layout stays flat.
+# mode).  timewalk_report and run_stability share this module's CLI/config builder but
+# have no mode; their results are grouped by their own `group` subfolder
+# (energy_reconstruction_results/timewalk/, timing_stability_results/stability/) instead.
 _MODE_ROUTED_PROGRAMS = {"compare", "of", "boxcar"}
 
 
@@ -579,7 +588,8 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     drivers expose an identical, consistent CLI."""
     p = argparse.ArgumentParser(description=description)
     p.add_argument("--input", type=Path, default=None,
-                   help="Input .h5 file; a bare name is looked up in waveform_files/.")
+                   help="Input .h5 file; a bare name is looked up in waveform_files/ "
+                        "(its dataset folders and their kind subfolders).")
     p.add_argument("--output-dir", type=Path, default=None,
                    help="Base output directory; plots go into "
                         "<output-dir>/<input-stem>_<program>_results[_N]/ so runs never "
@@ -670,12 +680,14 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
     p.add_argument("--times", type=Path, default=None,
                    help="Times .h5 carrying /event_time_rel_s, row-aligned with the input. Only "
                         "needed when the input itself has no time axis (an older conversion). "
-                        "Default: waveform_files/<input-stem>_times.h5 if it exists.")
+                        "Default: the dataset's own "
+                        "waveform_files/<run>/times/<input-stem>_times.h5 if it exists.")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return p
 
 
-def config_from_args(args, script_file: str | None = None, program: str | None = None) -> Config:
+def config_from_args(args, script_file: str | None = None, program: str | None = None,
+                     group: str | None = None) -> Config:
     """Build a Config from the shared CLI args (input resolved against waveform_files/).
 
     `script_file` / `program` identify the CALLING driver so its plots land in that
@@ -683,20 +695,23 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
     energy_reconstruction drivers (compare/optimal_filter/boxcar) AND run_stability,
     which live in different pipelines and want different folders + tokens.  Each
     driver passes its own `__file__` and short token; when omitted they fall back to
-    this module's location (energy_reconstruction) and the 'mv' token.
+    this module's location (energy_reconstruction) and the 'mv' token.  `group` is the
+    caller's program subfolder of its default results base (timewalk_report ->
+    energy_reconstruction_results/timewalk/, run_stability -> timing_stability_results/
+    stability/); like the <mode>_mode level it keeps programs sharing one results folder
+    apart, but it is skipped under an explicit --output-dir.
     """
     kwargs: dict[str, Any] = {"show_plots": not args.no_show, "save_plots": args.save_plots,
                               "full_diagnostics": args.full_diagnostics}
     if args.input is not None:
-        # Bare filename -> waveform_files/, including its per-run folders, so
-        # `--input run00270_ch9.h5` finds waveform_files/run00270/run00270_ch9.h5.
+        # Bare filename -> waveform_files/, wherever the layout puts it, so
+        # `--input run00270_ch9.h5` finds waveform_files/run00270/channels/run00270_ch9.h5.
         kwargs["input_path"] = resolve_input(args.input)
     else:
-        candidates = sorted(DEFAULT_WAVEFORM_DIR.glob("*.h5")) + \
-            sorted(DEFAULT_WAVEFORM_DIR.glob("*/*.h5"))
+        candidates = list_waveforms()
         if not candidates:
             raise FileNotFoundError(f"No .h5 files found in {DEFAULT_WAVEFORM_DIR} or its "
-                                    "per-run folders. Pass --input explicitly.")
+                                    "dataset folders. Pass --input explicitly.")
         kwargs["input_path"] = candidates[0]
         logger.info("No --input given; using %s", kwargs["input_path"])
     if args.polarity is not None: kwargs["polarity"] = args.polarity
@@ -709,14 +724,16 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
     # The <mode>_mode level keeps the two ANALYSES apart: gamma-muon and muon mode fit
     # different models to the same channel and produce same-named plots, so without it a
     # muon-mode run silently lands on top of (or beside, as _1) the gamma-muon run of the
-    # same file and the folder no longer says which analysis made it.  Only the
-    # energy-reconstruction drivers have a mode; run_stability shares this builder but its
-    # layout is unchanged.
+    # same file and the folder no longer says which analysis made it.  Only the three
+    # energy-reconstruction DRIVERS have a mode; timewalk_report and run_stability share
+    # this builder without one and are grouped by their `group` subfolder instead.
     mode = kwargs.get("mode", Config.mode)
     base = Path(args.output_dir) if args.output_dir is not None else results_base(
         script_file or __file__)
     if (program or program_token(script_file or __file__)) in _MODE_ROUTED_PROGRAMS:
         base = base / f"{mode}_mode"
+    elif group is not None and args.output_dir is None:
+        base = base / group
     kwargs["output_dir"] = resolve_results_dir(
         script_file or __file__, kwargs["input_path"].stem,
         base=base, program=program,
@@ -1884,6 +1901,47 @@ def build_spectrum(values, config: Config):
     bin_w = float(centers[1] - centers[0]) if centers.size > 1 else 1.0
     sm = _smoothing_bins(scale, bin_w, centers.size, config)
     return centers, counts, gaussian_filter1d(counts.astype(float), sm)
+
+
+def _comb_period(smoothed, muon_bump: int, overlap: int, config: Config) -> int:
+    """Period (in bins) of a resolved-photoelectron comb over the region the valley walk
+    traverses, or 0 when there is none.
+
+    A low-light SiPM channel (run00270 ch4-ch7, ~5-10 PE per MIP) resolves single
+    photoelectrons, so its ENTIRE spectrum -- pedestal edge, "valley", MIP peak -- is
+    modulated by a periodic comb at the PE spacing.  That comb defeats the valley walk
+    twice over: every inter-PE dip is deep enough to pass the valley_max_frac bar, and
+    with the PE spacing wider than the lookahead (ch6: 10 bins vs 4) the walk cannot see
+    the lower dip beyond it.  On run00270_ch6's boxcar spectrum the walk stopped in the
+    first dip off the MIP peak -- "valley" 0.499 with the MPV at 0.59 -- so the Landau was
+    fit on the top half of its own peak, and the low_population guard read the next PE
+    peak down (0.44) as a "gamma" population.  The comb is intra-population fine
+    structure, not a population boundary; landmarks must be found on its envelope.
+
+    DETECTION.  Autocorrelation of the envelope-subtracted spectrum below the bump.  A
+    periodic comb is anti-phased at half its period, so the autocorrelation must first dip
+    BELOW ZERO and then rebound to >= comb_rho_min at the period; the residual of a smooth
+    spectrum only decays to ~0, and the smoothing correlation among neighbouring bins never
+    produces the rebound.  Measured across all 22 run00270 + caen channel/estimator
+    spectra: comb channels (ch4, ch5, ch6 both estimators; ch7 boxcar) score rho =
+    0.61-0.77 while every clean channel scores <= 0.05 -- the 0.4 bar sits in an empty gap,
+    so clean channels are untouched (verified bit-identical landmarks AND fits)."""
+    hi = min(len(smoothed), muon_bump + 2 * overlap)
+    seg = np.asarray(smoothed[:hi], dtype=float)
+    if seg.size < 12:
+        return 0
+    resid = seg - gaussian_filter1d(seg, 1.5 * max(overlap, 2), mode="nearest")
+    resid -= resid.mean()
+    denom = float(np.dot(resid, resid))
+    if denom <= 0.0:
+        return 0
+    rho = np.array([np.dot(resid[:-k], resid[k:]) for k in range(1, seg.size // 3 + 1)]) / denom
+    neg = np.flatnonzero(rho < 0.0)
+    if neg.size == 0:
+        return 0
+    peak = int(neg[0]) + int(np.argmax(rho[neg[0]:]))
+    period = peak + 1                        # rho[i] is lag i+1
+    return period if (period >= 3 and rho[peak] >= config.comb_rho_min) else 0
 
 
 def spectrum_landmarks(centers, smoothed, median_val: float, overlap: int,
@@ -3426,11 +3484,20 @@ def plot_spectrum(method: dict, config: Config, name=None) -> None:
     # only on its own side of the valley), so each is drawn with its own chi2 and
     # no total curve is shown -- a summed curve would double-count in the overlap
     # region where both tails contribute.
+    # ... but only when the cut machinery stands behind it: with a reliability guard
+    # refusing the cut (fit["reliable"] False), whatever the mixture latched onto below
+    # the valley is the threshold turn-on or the MIP line's own flank, not a gamma
+    # population (run00270 ch4/ch5: near-delta Gaussians on single noisy bins), and
+    # drawing it reads as a claimed population.  Named in the legend; the title names
+    # the guard that refused.
     if fit["gamma_params"] is not None:
-        g = _sum_of_gaussians(centers, *fit["gamma_params"])
-        gchi = fit.get("gamma_chi2", np.nan)
-        ax.plot(centers, g, "--", color="red", lw=1.8,
-                label=f"gamma fit ({fit['n_gamma']} Gauss, chi2_red={gchi:.2f})")
+        if fit.get("reliable", True):
+            g = _sum_of_gaussians(centers, *fit["gamma_params"])
+            gchi = fit.get("gamma_chi2", np.nan)
+            ax.plot(centers, g, "--", color="red", lw=1.8,
+                    label=f"gamma fit ({fit['n_gamma']} Gauss, chi2_red={gchi:.2f})")
+        else:
+            ax.plot([], [], " ", label="gamma fit not drawn (guard refused the cut)")
     mu_fn = _muon_curve(fit)
     if mu_fn is not None:
         shape = "Landau(x)Gauss + tail" if fit.get("tail_params") else "Landau(x)Gauss"

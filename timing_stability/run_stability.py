@@ -464,10 +464,11 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level),
                         format="%(levelname)s %(name)s: %(message)s")
-    config = P.config_from_args(args, script_file=__file__, program="stability")
-    # The times file belongs to the same run as the input, so look for it beside the input
-    # (its per-run folder) before falling back to a bare-name lookup; when it has to be
-    # recovered, it is WRITTEN there too, which is where event_times.py would have put it.
+    config = P.config_from_args(args, script_file=__file__, program="stability",
+                                group="stability")
+    # The times file belongs to the same run as the input, so look for it in that run's
+    # times/ folder before falling back to a bare-name lookup; when it has to be recovered,
+    # it is WRITTEN there too, which is where event_times.py would have put it.
     if args.times is None:
         times = P.find_related(config.input_path,
                                f"{config.input_path.stem}_times.h5")
