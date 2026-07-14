@@ -73,9 +73,9 @@ foreach ($ch in @("run00270_ch0","run00270_ch1","run00270_ch2","run00270_ch3",
 }
 # muon mode: the triage-cleaned PMT exports
 & C:\Users\remys\miniconda3\python.exe compare.py --mode muon --save-plots --no-show --overwrite `
-    --input ..\preprocessing\preprocessing_results\run00270_ch9_triage_results_2\run00270_ch9_clean.h5
+    --input ..\preprocessing\preprocessing_results\triage\run00270_ch9_triage_results\run00270_ch9_clean.h5
 & C:\Users\remys\miniconda3\python.exe compare.py --mode muon --save-plots --no-show --overwrite `
-    --input ..\preprocessing\preprocessing_results\run00270_ch10_triage_results\run00270_ch10_clean.h5
+    --input ..\preprocessing\preprocessing_results\triage\run00270_ch10_triage_results\run00270_ch10_clean.h5
 ```
 
 `--mode` is **provenance, not shape**: whether a gamma/muon cut is meaningful is a
@@ -95,6 +95,22 @@ Quoting rules established by measurement (2026-07-14):
   fixing the misfit — the low region is a genuinely non-Gaussian continuum. The
   OF/boxcar disagreement (0.238 vs 0.458) is that misfit meeting two resolutions;
   quote the OF number only as a landmark.
+
+### `--template-trim` A/B (2026-07-14, trim 0.1 vs 0, all 13 datasets)
+
+Uniform fidelity gains, zero physics cost, one bookkeeping cost:
+
+* residual time-walk **down 10–30%** on every analog channel (caen −70%);
+* template-fidelity scale A0 **up 4–28%** on 12 of 13; caen median χ² −19%;
+* resolution closure, line-fit χ², and the **absolute** (gain-tracking) MPV
+  unchanged (155.2→155.1 / 165.1→165.2 ADC on the clean PMTs);
+* **but** every template-*relative* number (MPV_obs, cuts, trigger floor) shifts
+  ~+4…+37%, because trimming clips the right-skewed amplitude mixture and lowers
+  the template's own scale — a unit change, not a physics change.
+
+Verdict: a real improvement whose adoption as *default* re-bases every canonical
+template-relative number. Left **opt-in** deliberately; adopt at a natural
+analysis breakpoint (one commit + one full batch re-run), not mid-comparison.
 
 ## Tests
 
