@@ -67,7 +67,7 @@ opt-in gate (--exclude-pileup, Config.exclude_pileup) additionally drops events 
 per-event optimal-filter reduced chi2 exceeds pileup_chi2_factor x the chi2 a CLEAN pulse
 OF THAT AMPLITUDE would have -- the clean chi2 itself rises as c0 + (A/A0)^2, so a flat
 threshold is an amplitude cut in disguise (pileup_mask_from_chi2, chi2_amplitude_trend).
-Use it on PILEUP-HEAVY channels (e.g. a low-light PMT like
+Use it on PILEUP-HEAVY channels (e.g. a small trigger-paddle PMT like
 run00270_ch9) where high-amplitude overlapping pulses pull the muon Landau line up and
 bias the gamma-muon cut high; leave it OFF for clean channels (e.g.
 run00270_ch0), where it isn't needed and perturbs an already-good cut.  Only the FIT

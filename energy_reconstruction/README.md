@@ -128,7 +128,10 @@ Quoting rules established by measurement (2026-07-14):
 * **ch4–ch7 are resolved-photoelectron spectra** (2026-07-14): these low-light
   SiPM channels resolve single PE, so the *whole* spectrum — including the MIP
   peak — is a periodic comb at the PE spacing (ch6: 0.2 of the MIP scale, i.e.
-  ~5 PE per MIP). The old "gamma" fits on these channels were fitting PE teeth,
+  ~5 PE per MIP). Their dimness is geometry, not defect (2026-07-15,
+  arXiv:2505.06129): they are the mini-modules of the panel farthest from the
+  trigger footprint at the ch0 corner (~30 cm effective attenuation length,
+  18× brightness span ch0→ch7). The old "gamma" fits on these channels were fitting PE teeth,
   and the valley walk stopped in an inter-PE dip (ch6 boxcar "valley" 0.499 with
   the MPV at 0.59 — the Landau was fit on the top half of its own peak).
   `spectrum_landmarks` now detects the comb (`_comb_period`, autocorrelation
@@ -181,7 +184,12 @@ still open:
   measurement is a known trap — read the docstring before measuring shape/crest
   timing on analog channels).
 * **Killed hypotheses** (do not re-propose without new evidence): coherent pickup,
-  amplitude-dependent pulse shape, a second pulse species.
+  amplitude-dependent pulse shape, a second pulse species, and (2026-07-15) light
+  transit / position — the panel geometry is real (fiber-cluster layout confirmed
+  from cross-channel amplitude correlations), but at fixed amplitude the OF peak
+  time does not depend on a validated position proxy, and 94% of triggered muons
+  land on ch0's cell, so the position lever (~5–10 cm ≈ 0.1 samples of transit) is
+  20–40× too small for the walk anyway.
 * **Also killed (2026-07-14)**: template *quality* as the cause of the template-swap
   dependence — noise level, smearing, subset size, bulk width, and band
   contamination are all measured and out. What remains of the swap effect: a

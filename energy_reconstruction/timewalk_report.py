@@ -79,10 +79,18 @@ OUT: the coherent pickup (notch the line out of the data, rebuild the whole nois
 70-80% of the walk survives); an amplitude-dependent RISING EDGE (rise and crest lag are flat
 once notched -- note that scan never covered the width/decay side, which is exactly where the
 template-swap finding above points); a second "fast" pulse species in the dim population (that
-was the pickup artifact, not a species); and template QUALITY (see TEMPLATE).  The walk itself is real -- CLOSURE
+was the pickup artifact, not a species); template QUALITY (see TEMPLATE); and LIGHT TRANSIT /
+POSITION (2026-07-15).  That last one deserves its epitaph: the analog bank is the 8
+fiber-swirl mini-modules of the CUPID prototype panel (arXiv:2505.06129), the trigger
+footprint sits at the ch0 corner, and cross-channel amplitudes DO encode muon position
+(adjacency reproduced, corr vs layout distance rho=-0.74) -- but at fixed amplitude the OF
+peak time is INDEPENDENT of a validated rest-of-bank position proxy (rho 0.00-0.04, n~3000
+per band, ch0-ch3), the walk does not collapse within position bands, and 94% of triggered
+muons land on ch0's cell so the position lever (~0.1 samples of transit) is 20-40x too small
+regardless.  The walk itself is real -- CLOSURE
 says the estimator is unbiased -- but small: -2.3 to -3.7 samples across each analog channel's
 whole amplitude range, well under one sigma of the ~6.5-sample timing jitter, and harmless for
-energy reconstruction.  Don't re-propose the three dead hypotheses without new evidence.
+energy reconstruction.  Don't re-propose the four dead hypotheses without new evidence.
 
 Nothing here is a cut or a correction -- it is a QC report.
 """

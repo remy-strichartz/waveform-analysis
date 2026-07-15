@@ -147,9 +147,12 @@ preferentially at low amplitude — i.e. a real, quantified, spectrum-shape sele
 bias.
 
 It does **not**, however, fix ch10's resolution: the 16–84 spread stays at ~125–133 %
-of the MPV either way.  **ch10's poor resolution is intrinsic (low light), not caused
-by the disturbance** — a hypothesis worth testing and now settled in the negative,
-which is the point of having the gate.
+of the MPV either way.  **ch10's poor resolution is not caused by the disturbance** — a
+hypothesis worth testing and now settled in the negative, which is the point of having
+the gate.  (What it *is*: the 2026-07-15 cross-channel geometry analysis showed ch10's
+muon core matches ch9's almost exactly; the spread is dominated by its ~31 %
+sub-quarter-MIP population — degraded/edge-clipping tracks reaching the bottom paddle,
+a geometric-acceptance tail, not intrinsic low light in the core.)
 
 ## What was cut, and why
 
