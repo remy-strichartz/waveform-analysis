@@ -321,7 +321,11 @@ def print_stability_summary(blocks: dict, windows: list[dict], peak_scale: float
           f"{int(blocks['n_events'][0]):,} events")
     print(f"Gain drift, Q50 peak-peak  : {drift_pp:.2f} %  "
           f"[constant-fit p = {blocks['q50_p_const']:.3g}]")
-    print(f"Pulse height / threshold   : {thr_ratio:.0f}x (threshold bias negligible)")
+    # The verdict must be TESTED, not asserted: below 10x the warning path above has
+    # already fired, and printing "negligible" beside it would contradict it.
+    verdict = ("threshold bias negligible" if thr_ratio >= 10 else
+               "LOW -- block trackers may carry selection bias")
+    print(f"Pulse height / threshold   : {thr_ratio:.0f}x ({verdict})")
     print(f"Baseline drift, peak-peak  : {base_pp:.2f} ADC = "
           f"{100 * base_pp / peak_scale:.3f} % of the pulse scale "
           f"[p = {blocks['baseline_adc_p_const']:.3g}]")
@@ -353,15 +357,25 @@ def print_stability_summary(blocks: dict, windows: list[dict], peak_scale: float
 # ===========================================================================
 
 def all_event_baseline_noise(config: P.Config, length: int,
-                             chunk_events: int = 8192) -> tuple[np.ndarray, np.ndarray]:
+                             chunk_events: int = 8192,
+                             keep: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Per-event baseline level (raw-ADC pre-pulse median) and noise sigma (MAD of the
     baseline-corrected pre-pulse) for EVERY event in the file, in file-row order -- the
     all-event series the block trackers need but the streaming prepare() no longer
     materializes (it keeps only triggered events).  Read in row-chunks via the same
-    iter_waveform_chunks substrate, so peak memory is O(chunk * L), not O(N * L)."""
+    iter_waveform_chunks substrate, so peak memory is O(chunk * L), not O(N * L).
+
+    `keep` is the same good-time-interval mask prepare() applies (P.gti_mask): rows
+    the gate drops must appear in NEITHER series, or a block bracketing the excluded
+    window averages the very events the user excluded."""
     stop = P.noise_stop(length, config)
     levels, sigmas = [], []
-    for _, block in P.iter_waveform_chunks(config, chunk_events):
+    for start, block in P.iter_waveform_chunks(config, chunk_events):
+        if keep is not None:
+            in_gti = keep[start:start + block.shape[0]]
+            if not in_gti.any():
+                continue
+            block = block[in_gti]
         levels.append(np.median(block[:, :stop], axis=1))
         pre_cor = P.remove_baseline(block, config, warn=False)[:, :stop]
         sigmas.append(1.4826 * np.median(
@@ -388,20 +402,31 @@ def analyze(config: P.Config, times_path: Path, n_blocks: int, n_boot: int,
     peak_scale = float(prep.template.max())            # observable -> ADC pulse height
 
     # Threshold-bias guard: the offline trigger cuts at trigger_sigma times the response
-    # noise; in amplitude units that is trigger_sigma * sigma_A (the OF amplitude noise).
-    # The pulse-height scale must sit far above it.
-    _, sigma_meas = OF.optimal_filter_resolution(prep, prep.psd, config)
-    thr_amp = config.trigger_sigma * sigma_meas
+    # noise, and the pipeline's EXACT conversion of that cut into amplitude units is
+    # Prepared.trigger_floor (= trigger_sigma * resp_rms * L / denom).  Deriving it from
+    # the measured noise-window spread instead silently assumed the OF closure ratio is
+    # 1 -- which fails precisely on the non-stationary-noise channels this tool exists
+    # to catch (ch10: floor 0.0454 vs the old sigma-based 0.0263, a 1.7x understatement
+    # of the threshold and so a 1.7x overstatement of this guard's safety margin).
+    thr_amp = float(prep.trigger_floor)
     med_obs = float(np.nanmedian(obs))
     thr_ratio = med_obs / thr_amp if thr_amp > 0 else np.inf
     if thr_ratio < 10:
         logger.warning("Median pulse height is only %.1fx the offline trigger threshold "
                        "-- block trackers may carry selection bias.", thr_ratio)
 
-    # ---- per-event baseline & noise (ALL events, raw ADC), streamed ------
-    level_all, sigma_all = all_event_baseline_noise(config, prep.length)
+    # GTI consistency: prepare() honors config.exclude_hours for the triggered/gain
+    # series, so the all-event baseline/noise series and the block time axis must drop
+    # the SAME rows -- or a block bracketing the excluded window averages the very
+    # events the user excluded and its trigger fraction craters (measured on ch10 with
+    # --exclude-hours 20 30: block trig_frac 0.214 against ~0.97 real).
+    keep = P.gti_mask(config, t_rel.size)
+    t_all = t_rel if keep is None else t_rel[keep]
 
-    blocks = gain_blocks(t_rel, t_ev, obs, level_all, sigma_all, config, n_blocks, n_boot)
+    # ---- per-event baseline & noise (ALL events, raw ADC), streamed ------
+    level_all, sigma_all = all_event_baseline_noise(config, prep.length, keep=keep)
+
+    blocks = gain_blocks(t_all, t_ev, obs, level_all, sigma_all, config, n_blocks, n_boot)
     bad, windows = flag_bad_blocks(blocks, bad_noise_factor)
     print_stability_summary(blocks, windows, peak_scale, thr_ratio, bad_noise_factor,
                             config.input_path.stem)

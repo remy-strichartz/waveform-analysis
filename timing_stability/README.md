@@ -131,8 +131,9 @@ line to paste into an energy analysis.
 * **A late-run disturbance, and what it does — measured, not assumed.**  On **ch10**
   the noise σ climbs from ~2.8 to 11.7 ADC over the last ~6.6 h (2.45× the run
   median), and the window is flagged automatically (43.35–49.98 h).  Inside it,
-  **11.3 % of events carry no pulse at all vs 3.9 % outside** — the disturbance is
-  adding junk triggers, not changing the muons.  ch0's noise wanders all run
+  **10.5 % of events carry no pulse at all vs 3.3 % outside** (re-measured 2026-07-29
+  with the current trigger; the pre-PSD-trim numbers were 11.3/3.9) — the disturbance
+  is adding junk triggers, not changing the muons.  ch0's noise wanders all run
   (11.4–20.6 ADC, max/median = 1.40) without a clean excursion, and ch9's moves by
   10 %; **neither is flagged, and neither should be** — there is no window to cut.
 
@@ -144,7 +145,9 @@ thresholded against.  Excluding ch10's bad window with `--exclude-hours 43.35 49
 lowers that threshold and **recovers 428 good-period pulses the contaminated model
 had been rejecting** (12,350 → 12,778 triggered out of the same 12,853 events, +3.5 %),
 preferentially at low amplitude — i.e. a real, quantified, spectrum-shape selection
-bias.
+bias.  (Those counts are the 2026-07 pre-PSD-trim measurement; the current trigger
+keeps ~98 more events run-wide, so expect the same effect at slightly different
+absolute counts.)
 
 It does **not**, however, fix ch10's resolution: the 16–84 spread stays at ~125–133 %
 of the MPV either way.  **ch10's poor resolution is not caused by the disturbance** — a
