@@ -87,7 +87,9 @@ def write(job_names: list[str]) -> dict:
 
 
 def main() -> int:
-    from run_batch import job_names            # the batch defines the canonical set
+    import sys
+    sys.path.insert(0, str(ER.parent))         # repo root (see README)
+    from energy_reconstruction.run_batch import job_names   # the batch defines the canonical set
 
     names = job_names()
     summary = write(names)

@@ -137,7 +137,8 @@ def main() -> int:
     (LOGS / "manifest.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # Rebuild the summary from the logs this batch just wrote, so the two cannot separate.
-    import make_summary
+    sys.path.insert(0, str(ER.parent))                    # repo root (see README)
+    from energy_reconstruction import make_summary
     summary = make_summary.write(job_names())
     print(f"\n{len(summary['runs'])} runs -> final_run_summary.json")
 

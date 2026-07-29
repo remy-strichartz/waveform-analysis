@@ -71,9 +71,10 @@ import numpy as np
 from scipy.stats import chi2 as chi2_dist
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_PROJECT_ROOT / "energy_reconstruction"))
-import mv_pipeline as P              # noqa: E402
-import optimal_filter as OF          # noqa: E402
+sys.path.insert(0, str(_PROJECT_ROOT))                            # repo root (see README)
+
+from energy_reconstruction import mv_pipeline as P       # noqa: E402
+from energy_reconstruction import optimal_filter as OF   # noqa: E402
 
 logger = logging.getLogger("run_stability")
 
@@ -432,7 +433,7 @@ def autobuild_times(input_path: Path, out_path: Path, mid_path: Path | None) -> 
     <stem>_times.h5, reusable by every other channel); only the clock QC plots and the
     run-level rate/dead-time analysis are skipped -- run `event_times.py --save-plots`
     for those."""
-    import event_times as ET
+    from timing_stability import event_times as ET
     ttt, wall, word, bank, sei = ET.load_inputs(input_path, mid_path, None)
     rec = ET.recover(ttt, wall)
     ET.write_output(out_path, ttt, wall, sei, rec, word, bank, input_path)

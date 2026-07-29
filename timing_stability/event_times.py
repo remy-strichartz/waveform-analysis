@@ -78,12 +78,15 @@ from scipy.stats import chi2 as chi2_dist
 from scipy.stats import kstest, spearmanr
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_PROJECT_ROOT / "file_manipulation"))
-import midas_to_h5 as midas  # noqa: E402  (reuse the house MIDAS parser)
-from clock_recovery import (RESID_FAIL_S, choose_ttt_word,  # noqa: E402
-                            recover, valid_header_rows)
-from output_paths import (resolve_input, resolve_output,  # noqa: E402
-                          resolve_results_dir, run_dir)
+sys.path.insert(0, str(_PROJECT_ROOT))                            # repo root (see README)
+
+from common.output_paths import (resolve_input, resolve_output,  # noqa: E402
+                                 resolve_results_dir, run_dir)
+from common.timing_ops import dead_time_bound                    # noqa: E402
+from file_manipulation import midas_to_h5 as midas               # noqa: E402
+from file_manipulation.clock_recovery import (RESID_FAIL_S,      # noqa: E402
+                                              choose_ttt_word, recover,
+                                              valid_header_rows)
 
 logger = logging.getLogger("event_times")
 
@@ -212,29 +215,6 @@ def mc_ks_pvalue(sample: np.ndarray, kind: str, n_sim: int = 400,
     n_ge = sum(1 for _ in range(n_sim) if stat_of(draw()) >= stat)
     return float(stat), float(max(n_ge, 1) / n_sim)
 
-
-def dead_time_bound(t: np.ndarray) -> dict:
-    """Hard upper bound on the DAQ dead time, and the livetime fraction it implies.
-
-    A dead time tau removes ALL intervals below tau, so the smallest interval that
-    was actually observed is a hard upper bound on it.  The run can only RESOLVE a
-    dead time large enough that >= 3 sub-tau intervals were expected (95% CL):
-    tau_sens = 3/((n-1)*rate).  Quoting the two together is the whole point -- a
-    bound far below the sensitivity floor would be a fluke, not a measurement.
-
-    Livetime is the veto-relevant number: a muon arriving during dead time is an
-    unrecorded, hence unvetoed, muon.  hodoscope_efficiency quotes 1 - livetime as
-    its dead-time systematic."""
-    n = t.size
-    dt = np.diff(t)
-    rate = (n - 1) / float(t[-1] - t[0])          # exponential MLE
-    dt_min = float(dt.min())
-    tau_sens = 3.0 / ((n - 1) * rate)
-    return {"rate_hz": rate, "dt_min_s": dt_min, "tau_sens_s": tau_sens,
-            "n_below_sens": int(np.sum(dt < tau_sens)),
-            "exp_below_sens": float((n - 1) * (1.0 - np.exp(-rate * tau_sens))),
-            "dead_time_bound_s": dt_min,
-            "livetime_frac_min": 1.0 - rate * dt_min}
 
 
 def arrival_statistics(t: np.ndarray) -> dict:

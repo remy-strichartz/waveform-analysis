@@ -97,17 +97,13 @@ from scipy.special import erf
 from scipy.stats import landau, rankdata, trim_mean
 
 # The shared triage primitives -- flat-top saturation detector, polarity vote and
-# median-pulse extent rule -- live in waveform_triage, so this pipeline calls an
-# event "clipped" / a channel "negative" / a pulse "this wide" on exactly the
-# grounds triage does (one source of truth).  waveform_triage (and its peakfind
-# dependency) live in the sibling preprocessing/ directory, mirroring how the
-# other cross-package tools (e.g. file_manipulation/channel_diagnostics.py) put
-# it on the path.
-_PREPROCESSING_DIR = Path(__file__).resolve().parent.parent / "preprocessing"
-if str(_PREPROCESSING_DIR) not in sys.path:
-    sys.path.insert(0, str(_PREPROCESSING_DIR))
-from waveform_triage import (classify_events, detect_saturation,  # noqa: E402
-                             median_pulse_extent, polarity_vote, triage_cuts)
+# median-pulse extent rule -- live in common/waveform_ops.py, so this pipeline calls an
+# event "clipped" / a channel "negative" / a pulse "this wide" on exactly the grounds
+# triage does (one source of truth).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # repo root (see README)
+
+from common.waveform_ops import (classify_events, detect_saturation,  # noqa: E402
+                                 median_pulse_extent, polarity_vote, triage_cuts)
 
 logger = logging.getLogger("mv_pipeline")
 _SQRT_2PI = math.sqrt(2.0 * math.pi)
@@ -566,15 +562,14 @@ def resolve_polarity(waveforms: np.ndarray, config: Config) -> Config:
 # Shared CLI for the analysis drivers (optimal_filter / boxcar / compare)
 # ===========================================================================
 
-_PROJECT_ROOT = Path(__file__).parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_WAVEFORM_DIR = _PROJECT_ROOT / "waveform_files"
 DEFAULT_OUTPUT_DIR   = _PROJECT_ROOT / "results"
 
-# Shared waveform-file and per-run results-folder conventions
-# (see file_manipulation/output_paths.py).
-sys.path.insert(0, str(_PROJECT_ROOT / "file_manipulation"))
-from output_paths import (find_related, list_waveforms, program_token,  # noqa: E402
-                          resolve_input, resolve_results_dir, results_base)
+# Shared waveform-file and per-run results-folder conventions (see common/output_paths.py).
+from common.output_paths import (find_related, list_waveforms,  # noqa: E402
+                                 program_token, resolve_input,
+                                 resolve_results_dir, results_base)
 
 # Drivers whose results are routed into a <mode>_mode subfolder (they have an analysis
 # mode).  timewalk_report and run_stability share this module's CLI/config builder but

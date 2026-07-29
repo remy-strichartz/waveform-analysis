@@ -19,13 +19,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # repo root (see README)
 
 import numpy as np
 
-import mv_pipeline as P
-import optimal_filter as OF
-import boxcar as BX
+from energy_reconstruction import boxcar as BX           # noqa: E402
+from energy_reconstruction import mv_pipeline as P       # noqa: E402
+from energy_reconstruction import optimal_filter as OF   # noqa: E402
 
 logger = logging.getLogger("compare")
 

@@ -59,11 +59,11 @@ matplotlib.use("Agg")           # never open a window from a test
 import numpy as np
 from scipy.stats import landau
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # repo root
 
-import mv_pipeline as P          # noqa: E402
-import optimal_filter as OF      # noqa: E402
-import boxcar as BX              # noqa: E402
+from energy_reconstruction import boxcar as BX              # noqa: E402
+from energy_reconstruction import mv_pipeline as P          # noqa: E402
+from energy_reconstruction import optimal_filter as OF      # noqa: E402
 
 # ---------------------------------------------------------------------------------
 # Synthetic dataset (built once, shared by the tests)

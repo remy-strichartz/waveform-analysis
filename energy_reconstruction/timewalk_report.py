@@ -103,14 +103,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # repo root (see README)
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import mv_pipeline as P
-import optimal_filter as OF
+from energy_reconstruction import mv_pipeline as P       # noqa: E402
+from energy_reconstruction import optimal_filter as OF   # noqa: E402
 
 logger = logging.getLogger("timewalk_report")
 
