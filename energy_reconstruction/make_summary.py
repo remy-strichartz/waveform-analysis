@@ -22,10 +22,20 @@ LOGS = RESULTS / "logs"
 SUMMARY = RESULTS / "final_run_summary.json"
 
 RE_TRIG = re.compile(r"Triggered\s+(\d+)\s*/\s*(\d+)\s+analyzed")
-RE_MPV = re.compile(r"^ {2}(\S.*?)\s{2,}MPV=([\d.eE+-]+)\s+obs")
+# `MPV\s*=` covers BOTH summary formats: gamma-muon prints "MPV=0.88 obs", muon mode
+# prints "MPV   = 0.6373 obs".  The old exact-"MPV=" form silently skipped every
+# muon-mode job, so the two clean-export runs -- the very MPVs the README's quoting
+# rules point at -- were missing from final_run_summary.json (mpv: {}).
+RE_MPV = re.compile(r"^ {2}(\S.*?)\s{2,}MPV\s*=\s*([\d.eE+-]+)\s+obs")
 RE_CUT = re.compile(r"^ {2}(\S.*?)\s{2,}cut=([\d.eE+-]+)\s+\+/-\s+([\d.eE+-]+).*?:"
                     r"\s+([\d,]+)\s+muon-like,\s+([\d,]+)\s+gamma-like")
 RE_NOCUT = re.compile(r"^ {2}(\S.*?)\s{2,}NO CUT DERIVED")
+# The pipeline prints its own verdict on a cut -- [THIN...], [DEGENERATE...], [BAD FIT...]
+# -- on the continuation lines under it.  The summary must carry those flags with the
+# value: a DEGENERATE cut recorded as a bare number reads as a measurement, which is
+# exactly what the flag exists to deny.  (The bracket anchors the match to the summary
+# block; the logger's own DEGENERATE warning line carries no bracket.)
+RE_FLAG = re.compile(r"\[(THIN|DEGENERATE|BAD FIT)")
 RE_RAIL = re.compile(r"\(fit excludes (\d+) rail-clipped events\)")
 RE_RES = re.compile(r"predicted\s+([\d.eE+-]+),\s+measured\s+([\d.eE+-]+)")
 RE_SLOPE = re.compile(r"Shipped slope \(n_bins=\d+\):\s+([+-]?[\d.]+)")
@@ -50,15 +60,22 @@ def parse_log(name: str, text: str) -> dict:
         return out
 
     mpv, cut, no_cut, classified = {}, {}, [], []
+    last_cut = None            # the method whose continuation lines we are inside
     for ln in text.splitlines():
         if (m := RE_MPV.match(ln)):
             mpv[m[1].strip()] = float(m[2])
         elif (m := RE_CUT.match(ln)):
-            cut[m[1].strip()] = {"value": float(m[2]), "std": float(m[3])}
+            last_cut = m[1].strip()
+            cut[last_cut] = {"value": float(m[2]), "std": float(m[3])}
             classified.append({"muon_like": int(m[4].replace(",", "")),
                                "gamma_like": int(m[5].replace(",", ""))})
         elif (m := RE_NOCUT.match(ln)):
             no_cut.append(m[1].strip())
+            last_cut = None
+        elif last_cut is not None and (m := RE_FLAG.search(ln)):
+            flags = cut[last_cut].setdefault("flags", [])
+            if m[1] not in flags:
+                flags.append(m[1])
     out["mpv"], out["cut"], out["no_cut"], out["classified"] = mpv, cut, no_cut, classified
     out["n_rail_clipped_excluded"] = [int(x) for x in RE_RAIL.findall(text)]
     if (m := RE_RES.search(text)):

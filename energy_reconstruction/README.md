@@ -85,8 +85,10 @@ Results land in `energy_reconstruction_results/<mode>_mode/<stem>_compare_result
 (`--overwrite` keeps one canonical folder per channel; without it a re-run gets a
 fresh `_N` suffix).
 
-**Re-run the whole thing with `run_batch.py`** — 11 gamma-muon compares, the two
-triage-cleaned PMT exports in muon mode, 11 timewalk reports (~80 min):
+**Re-run the whole thing with `run_batch.py`** — 10 gamma-muon compares, three
+muon-mode compares (hodoscope-tagged caen_ch0 plus the two triage-cleaned PMT
+exports; `--mode` is provenance, and theirs says the gamma population is already
+gone), 11 timewalk reports (~80 min):
 
 ```bash
 python run_batch.py            # the canonical sweep

@@ -1,7 +1,9 @@
 """Run the canonical energy_reconstruction batch and write its record.
 
-This is the batch that produces the numbers of record: 11 gamma-muon compares, the two
-triage-cleaned PMT exports in muon mode, and 11 timewalk reports.  It writes
+This is the batch that produces the numbers of record: 10 gamma-muon compares, the three
+muon-mode compares (hodoscope-tagged caen_ch0 and the two triage-cleaned PMT exports --
+--mode is provenance, and theirs says the gamma population is already gone), and 11
+timewalk reports.  It writes
 `energy_reconstruction_results/logs/` (one log per job), `logs/manifest.txt` (the exact
 commands, exit codes, wall times and library versions), `logs/COMPLETE.txt` (written
 ONLY if every job exits 0 -- its absence means the batch did not finish), and
@@ -41,7 +43,7 @@ CLEAN = {ch: TRIAGE / f"run00270_{ch}_triage_results" / f"run00270_{ch}_clean.h5
 
 RAW = ["run00270_ch0", "run00270_ch1", "run00270_ch2", "run00270_ch3",
        "run00270_ch4", "run00270_ch5", "run00270_ch6", "run00270_ch7",
-       "run00270_ch9", "run00270_ch10", "caen_ch0"]
+       "run00270_ch9", "run00270_ch10"]
 
 PLOTS = ["--save-plots", "--no-show", "--overwrite"]
 
@@ -51,12 +53,19 @@ def jobs() -> list[tuple[str, list[str]]]:
     log stem and its key in final_run_summary.json."""
     out = [(f"compare_{stem}", ["compare.py", "--input", f"{stem}.h5", *PLOTS])
            for stem in RAW]
+    # caen_ch0 is hodoscope-TAGGED muon data -- the negative control of _gamma_evidence:
+    # --mode is provenance, and its provenance says the gamma population was removed
+    # upstream.  A gamma-muon run of it reports a cut at ~0.43 that the project itself
+    # measured to be meaningless (mv_pipeline._gamma_evidence), so the RECORD fits it in
+    # muon mode; rerun it in gamma-muon by hand only to reproduce that negative control.
+    out += [("compare_caen_ch0",
+             ["compare.py", "--mode", "muon", "--input", "caen_ch0.h5", *PLOTS])]
     out += [(f"compare_run00270_{ch}_clean",
              ["compare.py", "--mode", "muon", "--input", str(CLEAN[ch]), *PLOTS])
             for ch in ("ch9", "ch10")]
-    # timewalk: the run00270 analog bank only -- the walk is a property of that bank.
+    # timewalk: the run00270 bank only -- the walk is a property of that DAQ's channels.
     out += [(f"timewalk_{stem}", ["timewalk_report.py", "--input", f"{stem}.h5", *PLOTS])
-            for stem in RAW if stem != "caen_ch0"]
+            for stem in RAW]
     out += [("timewalk_run00270_ch7_clean",
              ["timewalk_report.py", "--input", str(CLEAN["ch7"]), *PLOTS])]
     return out

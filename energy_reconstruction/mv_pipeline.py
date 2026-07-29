@@ -2828,6 +2828,11 @@ def fit_muon_line(centers, y, smoothed, fit_lo: int, bin_w: float,
                            sigma=np.sqrt(np.maximum(yf, 1.0)), maxfev=40_000)
         params = list(par)
     except (RuntimeError, ValueError):
+        # Keep the unweighted seed as a last resort, but never silently: the chi2 and
+        # MPV reported below would otherwise describe a fit that never converged.
+        logger.warning("The Poisson-weighted MIP-line fit did not converge; falling back "
+                       "to the UNWEIGHTED seed fit -- treat this channel's MPV/chi2 with "
+                       "suspicion.")
         params = list(seed)
     fine = np.linspace(xf[0], xf[-1], 4000)
     line = {"muon_params": params, "tail_params": None,
