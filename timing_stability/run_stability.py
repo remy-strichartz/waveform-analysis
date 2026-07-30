@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-run_stability.py
-================
-The PER-CHANNEL half of the timing analysis: is this channel's response stable
+"""The PER-CHANNEL half of the timing analysis: is this channel's response stable
 across the real time axis recovered by event_times.py?
 
 GAIN / BASELINE / NOISE DRIFT.  The pulse-height scale per time block comes from
@@ -90,6 +87,12 @@ def load_times(times_path: Path, input_path: Path) -> tuple[np.ndarray, dict]:
     counts must match and, when both files carry /source_event_index, the indices must
     be identical -- a silent misalignment would scramble every time-resolved result."""
     with h5py.File(times_path, "r") as h5:
+        if "event_time_rel_s" not in h5:
+            raise ValueError(
+                f"{times_path.name} has no /event_time_rel_s dataset, so time-resolved "
+                f"stability cannot run. MIDAS-converted runs carry one; CAEN wavedump "
+                f"deliveries have no per-event timestamps (the cube's time_axis attr "
+                f"says so) unless converted with intake.py --trigger-rate-hz.")
         t_rel = np.asarray(h5["event_time_rel_s"][()], dtype=np.float64)
         sei_t = (np.asarray(h5["source_event_index"][()], dtype=np.int64)
                  if "source_event_index" in h5 else None)
@@ -128,14 +131,9 @@ def gain_blocks(t_all: np.ndarray, t_ev: np.ndarray, obs: np.ndarray,
     Baseline/noise block statistics are the MEAN of per-event robust values (per-event
     median / per-event MAD-sigma): the per-event estimators reject the pulse, and the
     block mean keeps sub-LSB resolution that a block median of integer-quantized ADC
-    values would destroy.
-
-    (A Landau(x)Gauss MPV cross-check used to run alongside the quantiles.  It was
-    valid on every channel tried and merely reproduced them, at the cost of the
-    heaviest fit path here -- a guarded Landau fit per block per bootstrap resample --
-    so it is gone.  The quantiles are gain-equivariant and assume no spectral model,
-    which is the stronger position on a broad paddle spectrum; mv_pipeline still owns
-    the Landau fit where it belongs, in the physics.)"""
+    values would destroy.  (A per-block Landau MPV cross-check was measured to merely
+    reproduce the quantiles at the heaviest fit cost here, so the quantiles stand
+    alone; mv_pipeline owns the Landau fit where it belongs.)"""
     finite = np.isfinite(obs)
     obs_f, t_ev_f = obs[finite], t_ev[finite]
     n_ev = obs_f.size
@@ -240,18 +238,10 @@ def flag_bad_blocks(blocks: dict, factor: float) -> tuple[np.ndarray, list[dict]
 
 def plot_gain_blocks(blocks: dict, bad: np.ndarray, peak_scale: float,
                      thr_ratio: float, config) -> None:
-    """Gain, offline-trigger fraction, baseline and noise against real time.
-
-    (The separate 'correlations' figure that used to accompany this one -- block gain
-    vs block baseline, block gain vs block rate -- is gone.  Both panels were 15-point
-    scatters of series already plotted here against time, and the one correlation that
-    looked like a finding, gain vs rate, is confounded: a disturbance that moves both
-    makes them correlate by construction.  Reading them off the time axis is both
-    honest and sufficient.  The exposure-corrected diurnal fold went with it: ~2 cycles
-    in a 50-h run cannot support a measurement, and a single localized disturbance
-    necessarily folds onto particular hours-of-day and manufactures a 'diurnal' signal
-    -- a confidently-wrong estimator, which is the failure mode this workspace exists
-    to avoid.)"""
+    """Gain, offline-trigger fraction, baseline and noise against real time.  This is
+    deliberately the ONE stability figure: block-vs-block correlation scatters and a
+    diurnal fold were measured to add nothing a 2-cycle run can support (a localized
+    disturbance manufactures both), so the series are read off the time axis only."""
     th = blocks["t_mid_h"]
     xerr = np.vstack([th - blocks["t_lo_h"], blocks["t_hi_h"] - th])
     fig, axes = plt.subplots(4, 1, figsize=(11, 12), sharex=True)

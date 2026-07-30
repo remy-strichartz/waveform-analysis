@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-mv_pipeline.py
-==============
-Shared pipeline for the scintillator-panel analyzers, built for REAL data:
+"""Shared pipeline for the scintillator-panel analyzers, built for REAL data:
 real colored detector noise and real pulses, with no reliance on injected truth.
 
 Flow: load -> estimate the colored noise power spectrum -> build a time-walk-free
@@ -26,15 +23,9 @@ replaced a Gaussian "shoulder" that was reported as a second population at 2.2x 
 not one (see _select_tail for the measurements that settled it).  The modes differ in what
 sits BELOW that line and in the fit RANGE it implies -- not in the line.
 
-The tail was briefly REMOVED on 2026-07-13 and restored the same day, so the cost of not
-having it is now measured rather than argued: without it, a fixed-scale Landau has to inflate
-eta to reach the tail, which drags the peak right.  MPV +15.8% on ch9_clean (0.639 -> 0.759),
-+8.3% on ch10_clean, +11.9% on ch6; muon chi2_red 1.01 -> 2.96 on ch9_clean and 1.96 -> 6.09
-on ch9 (gamma-muon); the gamma/muon cut moves -43% on ch10.  The quoted MPV DEPENDS on this
-model -- it is not cosmetic.  What is cosmetic, and is gone for good, is the "core only"
-companion CURVE that plot_muon_spectrum used to draw next to it: it held the fitted `area`
-fixed while collapsing the scale spread, so it overshot the data ~1.6x and read as a failed
-fit.  The core is not a separate population and is not plotted as one.
+Removing the tail was tried and measured: without it a fixed-scale Landau has to inflate
+eta to reach the tail, dragging the peak right (MPV +8-16% on the dim channels, muon
+chi2_red up severalfold).  The quoted MPV DEPENDS on this model -- it is not cosmetic.
 
 Two analysis modes (Config.mode):
   'gamma-muon' (default) -- muon-tagged beam (the usual configuration): the MIP
@@ -423,7 +414,7 @@ def _oriented_for_estimate(waveforms: np.ndarray, polarity: str) -> np.ndarray:
 
 def estimate_window_params(waveforms: np.ndarray, config: Config,
                            min_sigma: float = 8.0, coverage: float = 0.99,
-                           pad: int = 10) -> dict | None:
+                           pad: int = 10, min_count: int = 20) -> dict | None:
     """Estimate pulse_center / search_pad / template_pre / template_post from the data.
 
     Uses the same idea as waveform_triage.recommend_window: collect the peak positions
@@ -442,9 +433,9 @@ def estimate_window_params(waveforms: np.ndarray, config: Config,
     peak_pos = sig.argmax(axis=1)
     real = sig.max(axis=1) >= min_sigma * sigma
     positions = peak_pos[real]
-    if positions.size < 20:
-        logger.warning("Auto-window: only %d pulses clear %.0f sigma; keeping the fallback "
-                       "window.", int(positions.size), min_sigma)
+    if positions.size < min_count:
+        logger.warning("Auto-window: only %d pulses clear %.0f sigma (need %d); keeping "
+                       "the fallback window.", int(positions.size), min_sigma, min_count)
         return None
 
     center = int(np.median(positions))
@@ -518,6 +509,52 @@ def estimate_window_params(waveforms: np.ndarray, config: Config,
             "template_pre": template_pre, "template_post": template_post}
 
 
+def _fit_fallback_window(length: int, config: Config) -> Config | None:
+    """Shrink the FALLBACK window's free parameters until noise_stop's constraint
+    (2*template_pre + template_post <= pulse_center - search_pad) holds for THIS
+    record, when auto-window failed and the wired defaults do not fit.
+
+    The defaults were sized for long records; on a short one (a 1012-sample CAEN
+    record vs pulse_center=450, template 100+250, search_pad 90) they are
+    geometrically impossible and the pipeline used to die in noise_stop before
+    analyzing a single event.  Only parameters the user did NOT set explicitly are
+    touched -- if the explicit ones make the budget unreachable, returns None and
+    noise_stop raises its (actionable) error as before."""
+    center = pulse_center(length, config)
+    sp, pre, post = config.search_pad, config.template_pre, config.template_post
+    free = {f for f in ("pulse_center", "search_pad", "template_pre", "template_post")
+            if f not in config.explicit_window}
+    if center >= length and "pulse_center" in free:
+        center = length // 2
+    if 2 * pre + post <= center - sp and center == pulse_center(length, config):
+        return None                     # the defaults already fit; nothing to rescue
+    budget = center - sp
+    for _ in range(3):
+        if 2 * pre + post <= budget:
+            break
+        if "template_post" in free:
+            post = max(10, budget - 2 * pre)
+            if 2 * pre + post <= budget:
+                break
+        if "template_pre" in free:
+            pre = max(10, (budget - post) // 2)
+            if 2 * pre + post <= budget:
+                break
+        if "search_pad" in free:
+            sp = max(10, center - (2 * pre + post))
+            budget = center - sp
+    if 2 * pre + post > center - sp:
+        return None
+    fitted = replace(config, pulse_center=center, search_pad=sp,
+                     template_pre=pre, template_post=post)
+    logger.warning("Auto-window failed and the default window does not fit this "
+                   "%d-sample record; shrunk it to pulse_center=%d search_pad=%d "
+                   "template_pre=%d template_post=%d. This window is a GUESS -- "
+                   "check the template/timing plots, or set --pulse-center.",
+                   length, center, sp, pre, post)
+    return fitted
+
+
 def resolve_auto_window(waveforms: np.ndarray, config: Config) -> Config:
     """Return a Config with pulse_center/search_pad/template_pre/template_post filled in
     from the data (when auto_window is on), leaving any the user set explicitly alone."""
@@ -525,7 +562,20 @@ def resolve_auto_window(waveforms: np.ndarray, config: Config) -> Config:
         return config
     est = estimate_window_params(waveforms, config)
     if est is None:
-        return config
+        # Second pass for small or dim inputs: a triage-cleaned file can hold a few
+        # dozen genuine 5-7 sigma pulses (13 events at 800 V on the PMT scan), which
+        # the 8-sigma/20-pulse bar rejects even though every event is a known pulse.
+        # Lower the bar before surrendering to the wired default window, which is not
+        # even guaranteed to fit this record.
+        n = waveforms.shape[0]
+        est = estimate_window_params(waveforms, config, min_sigma=5.0,
+                                     min_count=max(8, min(20, n // 2)))
+        if est is not None:
+            logger.info("Auto-window: estimated on a second pass at 5 sigma "
+                        "(small/dim input).")
+    if est is None:
+        fitted = _fit_fallback_window(waveforms.shape[1], config)
+        return config if fitted is None else fitted
     updates = {k: v for k, v in est.items() if k not in config.explicit_window}
     if not updates:
         return config
@@ -900,9 +950,12 @@ def gti_mask(config: Config, n_total: int) -> np.ndarray | None:
     if t_h is None:
         raise SystemExit(
             "--exclude-hours needs a per-event time axis, and this input has none.\n"
-            "  Re-extract the channel (file_manipulation/extract_channels.py now recovers "
-            "/event_time_rel_s\n  from the header bank), or build a times file with "
-            "timing_stability/event_times.py and pass --times.")
+            "  MIDAS runs: re-extract the channel (file_manipulation/extract_channels.py "
+            "recovers /event_time_rel_s\n  from the header bank), or build a times file "
+            "with timing_stability/event_times.py and pass --times.\n"
+            "  CAEN wavedump deliveries carry no per-event timestamps at all (the cube "
+            "says so in its time_axis attr);\n  a fixed-rate run can be re-converted with "
+            "intake.py --trigger-rate-hz for a synthetic axis.")
     keep = np.ones(n_total, dtype=bool)
     for lo, hi in config.exclude_hours:
         keep &= ~((t_h >= lo) & (t_h < hi))
@@ -1356,12 +1409,15 @@ def _clean_model_set(corrected: np.ndarray, noise_sigma: float, config: Config,
     # lax it passed run00270_ch4 -- where triage flagged 13,723 of 14,994 events (91%) as
     # NOISE and the template was averaged from 356 pulses -- without a word.  Discarding
     # most of a channel is either a broken window/polarity or a channel with almost no
-    # signal; both deserve to be loud.
-    if n_keep < 200 or n_keep < 0.05 * n:
+    # signal; both deserve to be loud.  The absolute floor only bites when cleaning
+    # actually dropped something: a SMALL file (a 100-event triage-cleaned scan run)
+    # whose prefix survives intact IS the clean model set, and falling back to "ALL
+    # events" would silently re-admit nothing anyway while warning about it.
+    if n_keep < 0.05 * n or (dropped > 0 and n_keep < min(200, 0.5 * n)):
         logger.warning("Template cleaning flagged %d/%d model-prefix events "
-                       "(NOISE/PILEUP/clipped), leaving too few clean events; building "
+                       "(NOISE/PILEUP/clipped), leaving only %d clean events; building "
                        "the model from ALL events instead (check --polarity / "
-                       "--pulse-center and the pulse window).", dropped, n)
+                       "--pulse-center and the pulse window).", dropped, n, n_keep)
         return corrected
     if dropped > 0.5 * n:
         logger.warning("Template cleaning dropped %d/%d model-prefix events (%.0f%%) as "
@@ -3453,7 +3509,7 @@ def plot_baseline_residuals(prep: Prepared, config: Config) -> None:
     ax.hist(res, bins=edges, density=True, color="C0", alpha=0.7, label="Baseline residuals")
     x = np.linspace(-span, span, 400)
     ax.plot(x, np.exp(-0.5 * (x / s) ** 2) / (s * _SQRT_2PI), color="red", lw=2,
-            label=f"Gaussian (sigma = {s:.3g})")
+            label=rf"Gaussian ($\sigma$ = {s:.3g})")
     if lsb_limited:
         # With noise ~ 1 LSB the data occupies only a handful of integer ADC values, so
         # the CONTINUOUS Gaussian curve dips through the empty space between integers and
@@ -3476,7 +3532,8 @@ def plot_baseline_residuals(prep: Prepared, config: Config) -> None:
     rms = float(np.std(res))
     within1 = float(np.mean(np.abs(res) <= s))
     heavy_tailed = within1 < 0.62 or rms > 1.3 * s
-    ax.text(0.02, 0.97, f"RMS = {rms:.3g} ADC\nwithin +/-sigma: {within1*100:.0f}% (Gaussian 68%)"
+    ax.text(0.02, 0.97, f"RMS = {rms:.3g} ADC\n"
+            + rf"within $\pm\sigma$: {within1*100:.0f}% (Gaussian 68%)"
             + ("\nheavy-tailed / spike noise" if heavy_tailed else ""),
             transform=ax.transAxes, va="top", ha="left", fontsize=9,
             bbox=dict(boxstyle="round", fc="w", ec="0.7", alpha=0.85))
@@ -3492,7 +3549,7 @@ def plot_template(prep: Prepared, config: Config) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(prep.relative, prep.template, label="Cross-correlation-aligned average")
     ax.fill_between(prep.relative, prep.template - sem, prep.template + sem, alpha=0.35,
-                    label=f"+/-1 standard error (N={prep.n_template:,})")
+                    label=rf"$\pm 1$ standard error (N={prep.n_template:,})")
     ax.axvline(0, ls="--", color="gray", label="Peak")
     ax.set(xlabel="Samples relative to peak", ylabel="Corrected ADC", title="Pulse template")
     ax.legend(); ax.grid(True)
@@ -3522,14 +3579,15 @@ def plot_spectrum(method: dict, config: Config, name=None) -> None:
             g = _sum_of_gaussians(centers, *fit["gamma_params"])
             gchi = fit.get("gamma_chi2", np.nan)
             ax.plot(centers, g, "--", color="red", lw=1.8,
-                    label=f"gamma fit ({fit['n_gamma']} Gauss, chi2_red={gchi:.2f})")
+                    label=rf"$\gamma$ fit ({fit['n_gamma']} Gauss, $\chi^2_\nu$={gchi:.2f})")
         else:
-            ax.plot([], [], " ", label="gamma fit not drawn (guard refused the cut)")
+            ax.plot([], [], " ", label=r"$\gamma$ fit not drawn (guard refused the cut)")
     mu_fn = _muon_curve(fit)
     if mu_fn is not None:
-        shape = "Landau(x)Gauss + tail" if fit.get("tail_params") else "Landau(x)Gauss"
+        shape = (r"Landau$\otimes$Gauss + tail" if fit.get("tail_params")
+                 else r"Landau$\otimes$Gauss")
         ax.plot(centers, mu_fn(centers), "-.", color="orange", lw=1.8,
-                label=f"muon {shape} (chi2_red={fit['fit_chi2']:.2f})")
+                label=rf"$\mu$ {shape} ($\chi^2_\nu$={fit['fit_chi2']:.2f})")
     if fit["ok"]:
         cut_kind = fit.get("cut_kind", "valley")
         std = fit.get("cut_std", np.nan)
@@ -3538,9 +3596,9 @@ def plot_spectrum(method: dict, config: Config, name=None) -> None:
         # is the honest width of the answer and the thing a reader needs to see.
         lab = f"Cut ({cut_kind}) = {fit['cut']:.4g}"
         if np.isfinite(std):
-            lab += f" +/- {std:.2g}"
+            lab += rf" $\pm$ {std:.2g}"
             ax.axvspan(fit["cut"] - std, fit["cut"] + std, color="k", alpha=0.10,
-                       label=f"Cut +/- 1 sigma (bootstrap, n={fit.get('n_resamples', 0)})")
+                       label=rf"Cut $\pm 1\sigma$ (bootstrap, n={fit.get('n_resamples', 0)})")
         if fit.get("cut_degenerate"):
             lab += "  [degenerate: = valley]"
         ax.axvline(fit["cut"], ls=":", color="k", lw=2, label=lab)
@@ -3557,7 +3615,7 @@ def plot_spectrum(method: dict, config: Config, name=None) -> None:
         over = fit.get("mip_over_trigger", np.nan)
         ax.axvline(floor, ls="--", color="C2", lw=1.5,
                    label=f"trigger floor = {floor:.4g}"
-                         + (f" (MPV = {over:.1f}x it)" if np.isfinite(over) else ""))
+                         + (rf" (MPV = {over:.1f}$\times$ it)" if np.isfinite(over) else ""))
         ax.axvspan(min(centers[0], floor), floor, color="C2", alpha=0.07)
     # Scale the y-axis from the DATA counts (not the fit curve): a fit that
     # overshoots near the threshold turn-on otherwise inflates the top limit and
@@ -3569,13 +3627,14 @@ def plot_spectrum(method: dict, config: Config, name=None) -> None:
     if fit.get("reliable", True):
         unreliable = ""
     elif np.isfinite(over) and over < config.min_mip_over_trigger:
-        unreliable = (f"\n[NO CUT: MIP line is only {over:.1f}x the trigger floor -- the "
-                      f"trigger removed the gamma population it would be cut against]")
+        unreliable = ("\n" + rf"[NO CUT: MIP line is only {over:.1f}$\times$ the trigger floor"
+                      " -- the trigger removed the gamma population it would be cut against]")
     else:
-        unreliable = (f"\n[NO CUT: MIP line only {snr:.1f} sigma over the raw baseline noise "
-                      f"-- too dim to trust]")
+        unreliable = ("\n" + rf"[NO CUT: MIP line only {snr:.1f}$\sigma$ over the raw baseline"
+                      " noise -- too dim to trust]")
     ax.set(xlabel="Observable (proportional to energy)", ylabel="Counts/bin",
-           title=f"Spectrum ({method['label']}): gamma continuum + muon line" + unreliable)
+           title=f"Spectrum ({method['label']}): " + r"$\gamma$ continuum + $\mu$ line"
+                 + unreliable)
     ax.legend(loc="upper right"); ax.grid(True, which="both", alpha=0.3)
     _add_adc_axis(ax, method.get("peak_scale"))
     _finish(fig, name or f"spectrum_{method['label'].split()[0].lower()}", config)
@@ -3601,9 +3660,10 @@ def plot_muon_spectrum(method: dict, config: Config, name=None) -> None:
         # There is deliberately no "core only" companion curve -- it held the fitted `area`
         # fixed while switching the scale spread off, so it overshot the data ~1.6x and read
         # as a failed fit sitting next to a good one.  The core is not a separate population.
-        shape = "Landau(x)Gauss + response tail" if fit.get("tail_params") else "Landau(x)Gauss"
+        shape = (r"Landau$\otimes$Gauss + response tail" if fit.get("tail_params")
+                 else r"Landau$\otimes$Gauss")
         ax.plot(centers[drawn], _muon_curve(fit)(centers[drawn]), "-", color="C3", lw=1.8,
-                label=f"muon {shape} (chi2_red={fit['fit_chi2']:.2f})")
+                label=rf"$\mu$ {shape} ($\chi^2_\nu$={fit['fit_chi2']:.2f})")
     if fit.get("n_low_excluded", 0):
         ax.axvline(lo_x, ls="-.", color="C1", lw=1.5,
                    label=f"fit start (valley) = {lo_x:.4g}")
@@ -3712,16 +3772,17 @@ def plot_of_chi2(amplitude: np.ndarray, chi2_red: np.ndarray, config: Config,
     fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(13, 5))
     hi = float(np.percentile(c, 99.9)) if c.size else 5.0
     ax0.hist(c, bins=np.linspace(0, max(hi, 2.0), 100), color="C0", alpha=0.8)
-    ax0.axvline(1.0, ls="--", color="r", label="chi2_red = 1 (ideal)")
+    ax0.axvline(1.0, ls="--", color="r", label=r"$\chi^2_\nu = 1$ (ideal)")
     med = float(np.median(c)) if c.size else np.nan
     ax0.axvline(med, ls=":", color="k", label=f"median = {med:.2f}")
     # log-y: the interesting physics (pile-up/saturation) lives in the sparse
     # high-chi2 tail, which a linear scale crushes against the axis.
     ax0.set_yscale("log")
-    ax0.set(xlabel="Reduced chi2", ylabel="Events", title="OF goodness-of-fit")
+    ax0.set(xlabel=r"Reduced $\chi^2$", ylabel="Events", title="OF goodness-of-fit")
     ax0.legend(); ax0.grid(True, alpha=0.3)
     c0, a0 = (chi2_amplitude_trend(a, c, clip) if a.size else (np.nan, np.inf))
-    title = "OF chi2 vs amplitude"
+    title = r"OF $\chi^2$ vs amplitude"
+    log_x = bool(a.size) and float(a.min()) > 0
     if a.size:
         rng = np.random.default_rng(config.seed)
         pick = (rng.choice(a.size, 6000, replace=False) if a.size > 6000 else np.arange(a.size))
@@ -3733,34 +3794,45 @@ def plot_of_chi2(amplitude: np.ndarray, chi2_red: np.ndarray, config: Config,
         if cl.any():
             ax1.scatter(a[pick][cl], c[pick][cl], s=6, alpha=0.4, color="C1",
                         label="rail-clipped (saturated)")
-        # cap the x-range to the bulk: a few high-amplitude outliers otherwise
-        # autoscale the linear axis out to ~14 and crush the whole cloud into a
-        # narrow vertical stripe on the left, hiding the chi2-vs-amplitude trend.
-        # 99.5th pct keeps a bit more of the bright tail in view than the bulk-only 99th.
-        ax1.set_xlim(0, max(float(np.percentile(a, 99.5)), np.finfo(float).eps))
+        # FULL amplitude range, log x.  Every triggered amplitude is positive (the trigger
+        # floor is above zero), so a log axis holds the entire range -- threshold to the
+        # brightest pile-up -- without either cropping the bright tail (the old 99.5th-pct
+        # cap cut it off) or crushing the bulk into a stripe the way a full-range LINEAR
+        # axis would.  Falls back to the capped linear axis if a non-positive amplitude
+        # ever appears.
+        if log_x:
+            ax1.set_xscale("log")
+            ax1.set_xlim(float(a.min()) * 0.8, float(a.max()) * 1.25)
+        else:
+            ax1.set_xlim(0, max(float(np.percentile(a, 99.5)), np.finfo(float).eps))
         # THE CLEAN TREND.  The band is not flat and is not meant to be: a fractional template
         # mismatch contributes a residual proportional to A, so chi2 = c0 + (A/A0)^2.  Drawing
         # it turns "why does this rise?" into a measurement -- events should FOLLOW this curve;
         # the ones that sit above it are the genuine shape anomalies.
         if np.isfinite(c0):
-            xs = np.linspace(0, ax1.get_xlim()[1], 200)
-            lab = f"clean trend: {c0:.2f} + (A/{a0:.2f})$^2$" if np.isfinite(a0) else \
-                  f"clean level = {c0:.2f} (no trend)"
+            x_lo, x_hi = ax1.get_xlim()
+            xs = (np.geomspace(x_lo, x_hi, 200) if log_x
+                  else np.linspace(0, x_hi, 200))
+            lab = (rf"clean trend: {c0:.2f} + $(A/{a0:.2f})^2$" if np.isfinite(a0) else
+                   f"clean level = {c0:.2f} (no trend)")
             ax1.plot(xs, expected_chi2(xs, c0, a0), "-", color="C3", lw=2, label=lab)
             ax1.plot(xs, config.pileup_chi2_factor * expected_chi2(xs, c0, a0), "--",
                      color="C3", lw=1.2, alpha=0.7,
-                     label=f"pileup gate ({config.pileup_chi2_factor:g}x trend)")
+                     label=rf"pileup gate ({config.pileup_chi2_factor:g}$\times$ trend)")
         if np.isfinite(a0):
-            title += f"   [A0 = {a0:.2f}: template fidelity, higher = better]"
-    # log-y to spread the upward-scattering anomalies; a log axis needs a
-    # positive floor (0 is invalid), so clamp just below the clean band.
+            title += rf"   [$A_0$ = {a0:.2f}: template fidelity, higher = better]"
+    # log-y to spread the upward-scattering anomalies; a log axis needs a positive floor
+    # (0 is invalid), so clamp just below the clean band.  The top runs to the LARGEST
+    # chi2 seen (not a percentile): on log axes the extra decades cost the bulk nothing,
+    # and the worst pile-up -- the very events this panel exists to expose -- stays on it.
     lo = max(float(np.percentile(c, 0.5)), 0.1) if c.size else 0.1
+    c_top = float(c.max()) if c.size else 2.0
     ax1.set_yscale("log")
-    ax1.set_ylim(lo, max(hi, 2.0))
+    ax1.set_ylim(lo, max(c_top * 1.5, 2.0))
     # a narrow chi2 range can span <1 decade (only 10^1 lands a labelled major
     # tick), leaving the axis nearly blank; label the minor ticks too.
     ax1.yaxis.set_minor_formatter(LogFormatterSciNotation(minor_thresholds=(2, 0.5)))
-    ax1.set(xlabel="Reconstructed amplitude", ylabel="Reduced chi2", title=title)
+    ax1.set(xlabel="Reconstructed amplitude", ylabel=r"Reduced $\chi^2$", title=title)
     ax1.legend(loc="upper left", fontsize=8)
     ax1.grid(True, alpha=0.3)
     _add_adc_axis(ax1, peak_scale)
@@ -3776,12 +3848,13 @@ def plot_template_residual(relative: np.ndarray, resid_mean: np.ndarray, resid_r
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(relative, resid_mean, color="C3", lw=1.5, label="mean residual (systematic)")
     ax.fill_between(relative, resid_mean - resid_rms, resid_mean + resid_rms,
-                    color="C0", alpha=0.3, label="+/-1 residual RMS (per sample)")
+                    color="C0", alpha=0.3, label=r"$\pm 1$ residual RMS (per sample)")
     ax.axhline(0, color="gray", lw=0.8)
-    ax.axhline(noise_sigma, ls=":", color="k", lw=1, label=f"noise sigma = {noise_sigma:.3g}")
+    ax.axhline(noise_sigma, ls=":", color="k", lw=1,
+               label=rf"noise $\sigma$ = {noise_sigma:.3g}")
     ax.axhline(-noise_sigma, ls=":", color="k", lw=1)
     ax.set(xlabel="Samples relative to peak", ylabel="Residual (corrected ADC)",
-           title="Template-fit residual (data - A*template)")
+           title=r"Template-fit residual (data $- A\cdot$template)")
     ax.legend(); ax.grid(True, alpha=0.3)
     _finish(fig, name, config)
 
@@ -3849,17 +3922,21 @@ def plot_timing(peak_subsample: np.ndarray, amplitude: np.ndarray, length: int,
     tail_cut = max(5.0 * robust_sig, 5.0) if np.isfinite(robust_sig) else np.inf
     tail_frac = float(np.mean(np.abs(t - t_med) > tail_cut)) if t.size else 0.0
     fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(13, 5))
-    ax0.hist(t, bins=80, color="C0", alpha=0.8)
+    n_per_bin, _, _ = ax0.hist(t, bins=80, color="C0", alpha=0.8)
     ax0.axvline(t_med, ls="--", color="r",
-                label=f"median = {t_med:.3f}, robust sigma = {robust_sig:.3f} samp\n"
-                      f"raw std = {np.std(t):.3f} ({tail_frac*100:.1f}% noise-trigger tail)")
+                label=rf"median = {t_med:.3f}, robust $\sigma$ = {robust_sig:.3f} samp"
+                      + "\n"
+                      + f"raw std = {np.std(t):.3f} ({tail_frac*100:.1f}% noise-trigger tail)")
     # log-y: the distribution is a sharp core over a ~1%-level noise-trigger tail
     # scattered across the search window; a linear axis shows only the core, hiding
     # exactly the structure (tail fraction, satellite bumps) this QC panel exists for.
-    ax0.set_yscale("log"); ax0.set_ylim(bottom=0.5)
+    # Headroom above the tallest bar (a decade is cheap on log-y) gives the stats
+    # legend an empty band to sit in instead of covering the histogram's peak.
+    top = max(float(n_per_bin.max()) if n_per_bin.size else 1.0, 1.0) * 12.0
+    ax0.set_yscale("log"); ax0.set_ylim(bottom=0.5, top=top)
     ax0.set(xlabel="Peak time - expected center (samples)", ylabel="Events",
             title="Reconstructed pulse-time distribution")
-    ax0.legend(); ax0.grid(True, alpha=0.3)
+    ax0.legend(loc="upper left", fontsize=9); ax0.grid(True, alpha=0.3)
     if a.size > 10:
         rng = np.random.default_rng(config.seed)
         pick = (rng.choice(a.size, 6000, replace=False) if a.size > 6000 else np.arange(a.size))
@@ -3904,25 +3981,39 @@ def amplitude_area_outliers(of_obs: np.ndarray, bx_obs: np.ndarray, n_mad: float
 
 def plot_amplitude_area(of_obs: np.ndarray, bx_obs: np.ndarray, config: Config,
                         name="12_amplitude_area", outliers: tuple | None = None,
-                        peak_scale: float | None = None) -> dict[str, Any]:
+                        peak_scale: float | None = None,
+                        clipped: np.ndarray | None = None) -> dict[str, Any]:
     """Amplitude (optimal filter) vs area (boxcar) correlation -- tightly linear
     for a single pulse shape.  Off-band events (highlighted) are pile-up / residual
     saturation / shape anomalies, the classic SiPM amplitude-charge quality cut.
     `outliers`: optionally the amplitude_area_outliers tuple a driver already
-    computed for print_qc, so it is not recomputed here."""
+    computed for print_qc, so it is not recomputed here.  `clipped` (saturation_qc's
+    sat_mask, on channels with a real rail): rail-clipped events are drawn in their
+    own color -- clipping caps the PEAK harder than the AREA, so they bend off the
+    line on the low-ratio side, and unmarked they would read as unexplained outliers.
+    (They are already excluded from every fit by the flat-top rail test, which is the
+    rail CUT; the ratio band here is QC, not the exclusion mechanism.)"""
     of_obs, bx_obs = np.asarray(of_obs, float), np.asarray(bx_obs, float)
     ratio, outlier, lo, hi = (outliers if outliers is not None
                               else amplitude_area_outliers(of_obs, bx_obs))
     ok = np.isfinite(of_obs) & np.isfinite(bx_obs)
-    inlier = ok & ~outlier
+    clip = (np.asarray(clipped, bool) if clipped is not None
+            else np.zeros(of_obs.shape, dtype=bool))
+    inlier = ok & ~outlier & ~clip
     rng = np.random.default_rng(config.seed)
     idx = np.flatnonzero(inlier)
     pick = rng.choice(idx, 6000, replace=False) if idx.size > 6000 else idx
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(13, 5))
+    # constrained layout: the left panel carries a right-hand secondary ADC axis whose
+    # label otherwise collides with the right panel's y-axis text.
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(13.5, 5), layout="constrained")
     ax0.scatter(bx_obs[pick], of_obs[pick], s=4, alpha=0.2, color="C0", label="in-band")
-    if outlier.any():
-        ax0.scatter(bx_obs[outlier], of_obs[outlier], s=10, color="C3",
-                    label=f"outliers (n={int(outlier.sum())})")
+    if clip.any():
+        ax0.scatter(bx_obs[clip], of_obs[clip], s=10, color="C1", alpha=0.6,
+                    label=f"rail-clipped (n={int(clip.sum())})")
+    if (outlier & ~clip).any():
+        out_only = outlier & ~clip
+        ax0.scatter(bx_obs[out_only], of_obs[out_only], s=10, color="C3",
+                    label=f"outliers (n={int(out_only.sum())})")
     ax0.set(xlabel="Area (boxcar)", ylabel="Amplitude (optimal filter)",
             title="Amplitude vs area correlation")
     ax0.legend(); ax0.grid(True, alpha=0.3)
@@ -4222,10 +4313,10 @@ def plot_shape_vs_amplitude(prep: Prepared, config: Config, name="15_shape_vs_am
         # and to any monotone non-linearity in the trend).
         rho = float(np.corrcoef(rankdata(amp), rankdata(v))[0, 1])
         ax.set(xscale="log", xlabel="Pulse amplitude (ADC)", ylabel="Samples",
-               title=f"{title}   (Spearman ρ={rho:+.2f})")
+               title=rf"{title}   (Spearman $\rho$={rho:+.2f})")
         ax.set_ylim(y_lo, y_hi)
         ax.legend(fontsize=8, loc="best"); ax.grid(True, alpha=0.3)
-        fig.colorbar(hb, ax=ax, label="log₁₀ count")
+        fig.colorbar(hb, ax=ax, label=r"$\log_{10}$ count")
     fig.suptitle("Pulse-shape parameters vs amplitude, pickup-notched  "
                  "(flat profile = constant; sloped = amplitude-correlated)", fontsize=13)
     fig.tight_layout()
@@ -4315,7 +4406,14 @@ def _spectrum_model(fit: dict):
 
 def plot_spectrum_pull(method: dict, config: Config, name=None) -> None:
     """Normalized fit residual (data - model)/sqrt(model) vs pulse height -- shows
-    WHERE the spectrum fit misfits rather than only the aggregate chi2."""
+    WHERE the spectrum fit misfits rather than only the aggregate chi2.
+
+    Bins BELOW the fit start (muon mode's valley / percentile floor, where nothing
+    models the sub-MIP population) are drawn in grey and excluded from the y-range:
+    the model was never fit there, so the huge "pull" against the unmodeled noise/
+    gamma bump is not a fit failure and must not be allowed to set the axis scale
+    (on run00270_ch10_clean it reached +66 and flattened the real +/-2 structure
+    into a line).  The reported chi2 never included those bins either."""
     fit = method["fit"]
     model_fn = _spectrum_model(fit)
     if model_fn is None:
@@ -4323,12 +4421,26 @@ def plot_spectrum_pull(method: dict, config: Config, name=None) -> None:
     centers, counts = fit["centers"], fit["counts"].astype(float)
     model = model_fn(centers)
     pull = (counts - model) / np.sqrt(np.maximum(model, 1.0))
+    lo_x = fit.get("fit_lo_x", float(centers[0])) if fit.get("n_low_excluded", 0) else None
+    fitted = np.ones(centers.size, dtype=bool) if lo_x is None else centers >= lo_x
     fig, ax = plt.subplots(figsize=(10, 4.5))
     ax.axhspan(-2, 2, color="C0", alpha=0.12); ax.axhspan(-1, 1, color="C0", alpha=0.18)
     ax.axhline(0, color="gray", lw=0.8)
-    ax.plot(centers, pull, color="C3", lw=0.9)
-    ax.set(xlabel="Observable (proportional to energy)", ylabel="(data - model)/sqrt(model)",
-           title=f"Spectrum fit pull ({method['label']}; chi2_red={fit['fit_chi2']:.2f})")
+    if lo_x is not None:
+        ax.plot(centers[~fitted], pull[~fitted], color="0.65", lw=0.9,
+                label="below fit start (population not modeled)")
+        ax.axvline(lo_x, ls="-.", color="C1", lw=1.2, label=f"fit start = {lo_x:.4g}")
+    ax.plot(centers[fitted], pull[fitted], color="C3", lw=0.9)
+    p_fit = pull[fitted & np.isfinite(pull)]
+    if p_fit.size:
+        span = max(float(np.abs(p_fit).max()) * 1.15, 3.0)
+        ax.set_ylim(-span, span)
+    ax.set(xlabel="Observable (proportional to energy)",
+           ylabel=r"(data $-$ model) / $\sqrt{\mathrm{model}}$",
+           title=f"Spectrum fit pull ({method['label']}; "
+                 + rf"$\chi^2_\nu$={fit['fit_chi2']:.2f})")
+    if lo_x is not None:
+        ax.legend(loc="upper right", fontsize=9)
     ax.grid(True, alpha=0.3)
     _add_adc_axis(ax, method.get("peak_scale"))
     tag = method["label"].split()[0].lower()
@@ -4357,9 +4469,10 @@ def plot_estimator_comparison(methods: list[dict], config: Config, name="16_esti
             width, wname = m["summary"]["spread_frac"], "16-84 half-spread"
         else:
             width = m["fit"]["sigma"] / mpv if mpv > 0 else np.nan
-            wname = "Landau(x)Gauss sigma"
+            wname = r"Landau$\otimes$Gauss $\sigma$"
         ax.hist(x, bins=np.linspace(0, 3, 160), histtype="step", lw=1.8, color=m["color"],
-                density=True, label=f"{m['label']} ({wname} ~ {100*width:.1f}% MPV)")
+                density=True,
+                label=rf"{m['label']} ({wname} $\approx$ {100*width:.1f}% of MPV)")
     ax.axvline(1.0, ls="--", color="gray", label="MPV")
     ax.set(xlabel="Observable / MPV", ylabel="Probability density",
            title="Estimator comparison (spectra scaled to each MPV)")

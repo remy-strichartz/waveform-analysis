@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-compare.py
-==========
-Run both amplitude estimators on the same real-noise dataset and compare them.
+"""Run both amplitude estimators on the same real-noise dataset and compare them.
 
 Prepares the data once (load, colored-noise PSD, time-walk-free template,
 optimal-filter trigger), then evaluates the optimal (Wiener) filter and the
@@ -94,7 +91,7 @@ def analyze(config: P.Config) -> dict[str, Any]:
         P.plot_timing(prep.events["peak_subsample"].to_numpy(), of_obs,
                       prep.length, config, peak_scale=optimal["peak_scale"])
         P.plot_amplitude_area(of_obs, bx_obs, config, outliers=aa_bands,
-                              peak_scale=optimal["peak_scale"])
+                              peak_scale=optimal["peak_scale"], clipped=clipped)
         P.plot_waveform_diagnostics(prep, config)
         P.plot_spectrum_pull(optimal, config)
         P.plot_estimator_comparison(methods, config)

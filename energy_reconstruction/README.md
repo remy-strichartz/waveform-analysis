@@ -17,6 +17,7 @@ live in miniconda rather than the bare `python` on PATH; see the root README.)
 | `boxcar.py` | driver: colored-noise-optimal top-hat integral amplitude. |
 | `compare.py` | **the production driver**: runs both estimators on one preparation and compares them. |
 | `timewalk_report.py` | standalone QC report on the residual time-walk (see below — retained deliberately). |
+| `event_scanner.py` | interactive per-event browser: step through events on the OF chi2-vs-amplitude or time-walk plane (pileup-gated / off-time / all selections) and see each waveform with its A·template fit. `--export N` for headless PNGs. |
 | `run_batch.py` | **the batch driver**: runs the whole canonical sweep and writes its record (see below). |
 | `make_summary.py` | rebuilds `final_run_summary.json` from the batch logs; called by `run_batch.py`. |
 | `tests/test_energy_reconstruction.py` | synthetic end-to-end regression tests (no real data touched). |
@@ -158,6 +159,86 @@ Uniform fidelity gains, zero physics cost, one bookkeeping cost:
 Verdict: a real improvement whose adoption as *default* re-bases every canonical
 template-relative number. Left **opt-in** deliberately; adopt at a natural
 analysis breakpoint (one commit + one full batch re-run), not mid-comparison.
+
+### Modelling muon mode's sub-MIP pedestal instead of truncating it — REFUTED (2026-07-30)
+
+The proposal, and it is a reasonable one: muon mode *truncates* the sub-MIP pedestal
+out of the line fit (`muon_fit_lo_pct` = 0.5, or the valley when the landmark walk
+finds one), where gamma-muon mode *models* its low population. A nuisance component
+under the MIP peak biases the MPV whatever it is physically made of — gamma, EM or
+digitiser noise — so the pedestal should be modelled and the MPV allowed to respond.
+Provenance decides whether a *cut* means anything; it should not decide the *MPV*.
+
+Built and measured: a bounded Gaussian mixture on `[trigger_floor, truncation point]`,
+extended up through the overlap (`_gamma_fit_top`), means bounded by the truncation
+point and widths by `gamma_sigma_containment` — i.e. exactly the gamma fit's machinery
+minus the cut — then the line refit over the full range with that pedestal fixed and
+its tail-model choice inherited so any MPV shift is attributable to the pedestal alone.
+
+**It does not work. Three regimes, and it loses in all three.**
+
+*Truth closure* (synthetic Landau⊗Gauss, true MPV 0.68502, censored at a trigger floor,
+3 seeds; the pedestal is generated **as a Gaussian**, so this test is rigged in the
+model's favour). MPV error, truncated vs modelled:
+
+| scenario | truncated | modelled | pedestal fraction fitted (true) |
+|---|---|---|---|
+| `overlap` — 24% separable low population, tail into the turn-on | +0.55 / −0.07 / +0.66 % | +0.28 / +0.55 / +0.63 % | 0.236–0.241 (0.244) ✓ |
+| `clean` — muons only | +0.36 / +0.72 / +0.66 % | +0.67 / +0.04 / +0.53 % | 0.000 (0.000) ✓ |
+| `censored` — pedestal below the floor, no overlap | +0.76 / +0.46 / +1.08 % | +0.58 / +0.42 / +0.62 % | 0.042 (0.043) ✓ |
+| `merged` — 33%, **no valley**, 4.5k events under the line | **−10.33 / −10.19 / −10.61 %** | **identical — declined to engage** | — |
+
+The mixture recovers the true pedestal fraction every time and never invents a
+population on clean data, so it is *correct*; the MPV differences in the first three
+rows are ±0.7%, random-signed — noise, not a gain.
+
+*Real data* (the three muon-mode channels of record, both estimators):
+
+| channel | truncated region | MPV shift | pedestal | χ² on `[trunc_lo, end]` |
+|---|---|---|---|---|
+| `caen_ch0` OF | valley, 28 ev (3.9%) | −0.60% | k=1, 2.8% | 0.405 → 0.406 |
+| `caen_ch0` boxcar | valley, 26 ev (3.7%) | +1.09% | k=1, 3.5% | 0.444 → 0.430 |
+| `ch9_clean` OF | 0.5 pct, 76 ev (0.5%) | **−10.27%** | k=1, **0.00%** | 0.993 → **1.755** |
+| `ch9_clean` boxcar | 0.5 pct, 88 ev (0.6%) | **−8.65%** | k=1, **0.00%** | 0.926 → **1.434** |
+| `ch10_clean` OF | valley, 2501 ev (20%) | −0.25% | k=2, 15.4% | 0.843 → 0.862 |
+| `ch10_clean` boxcar | valley, 2433 ev (19%) | −0.05% | k=2, 15.4% | 1.026 → 1.045 |
+
+It also pushes the two estimators *apart* on `caen_ch0` (5.3% → 7.0%), and never
+improves the line's own χ² on the range the truncated fit already owned.
+
+**The mechanism, measured.** Everything turns on whether the landmark walk found a
+valley, i.e. whether the low counts are a *population* or a *smear*:
+
+* **Valley present** (`caen_ch0`, `ch10_clean`, synthetic `overlap`/`censored`) — the
+  mixture fits the population properly and the MPV moves ≤1%. The truncated fit was
+  already unbiased, because the Landau's turn-on above the valley has plenty of data
+  to pin the MPV and the pedestal's density there is small next to the line.
+* **No valley** (`ch9_clean`) — the truncated region is *11 bins* holding
+  `[7, 9, 6, 1, 2, 1, 0, 2, 3, 8, 21]`: a sparse, non-monotone smear with a hole in
+  it, not a Gaussian anything. The bounded mixture fits it to amplitude ≈ 0 (fraction
+  0.0000), and the full-range refit then has to absorb 11 bins where the Landau
+  predicts ~0 counts — so the line is dragged down 9–10%. **This is precisely the
+  failure `muon_fit_lo_pct` exists to prevent, reintroduced.** The truncation is not a
+  crude stand-in for a pedestal model; it is protecting against something no bounded
+  mixture can absorb.
+* **Genuinely merged** (synthetic `merged`) — here truncation *is* badly biased
+  (−10.2 to −10.6%, and the user's concern is real), and the method cannot help:
+  with no valley, the mean bound sits at the trigger floor, so there is nothing for a
+  low-side component to grip and the machinery declines on all three seeds.
+
+**The fundamental trap.** Leave the mixture unbounded and a wide Gaussian reaches
+under the MIP peak, degenerate with the Landau's own turn-on (the failure
+`_gamma_fit_top` documents). Bound it, and it cannot reach the contamination that
+actually matters. The overlapping fraction is **not identifiable from the spectrum
+shape**: the part of the low population that overlaps the line is not separately
+visible, and the part that *is* visible is the sparse sub-MIP smear. This is why
+upstream selection (hodoscope tag, triage) beats fitting — it is independent
+information, and a Gaussian extrapolation is not.
+
+Verdict: **reverted, not shipped opt-in.** A gated version (accept the pedestal only
+where a valley exists) is possible and would be harmless, but it would buy nothing —
+that is exactly the regime already measured at ≤1%. Do not re-chase this. Harness:
+`ab_pedestal.py` / `closure_pedestal.py` in the session scratchpad.
 
 ## Tests
 

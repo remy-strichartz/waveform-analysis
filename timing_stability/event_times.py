@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-event_times.py
-==============
-The RUN-LEVEL half of the timing analysis: recover the real time axis of a run,
+"""The RUN-LEVEL half of the timing analysis: recover the real time axis of a run,
 then measure everything about the run that only a clock can see and that is a
 property of the RUN rather than of a channel.
 

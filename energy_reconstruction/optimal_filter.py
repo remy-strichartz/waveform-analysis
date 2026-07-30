@@ -1,8 +1,5 @@
 ﻿#!/usr/bin/env python3
-"""
-optimal_filter.py
-=================
-Standalone optimal (Wiener) filter analysis for real colored noise.
+"""Standalone optimal (Wiener) filter analysis for real colored noise.
 
 Estimates the noise power spectrum N(f) from the pre-pulse baseline, then forms
 A_hat = Re[sum X(f) S*(f)/N(f)] / sum |S(f)|^2/N(f), weighting each frequency by
@@ -176,9 +173,10 @@ def plot_noise_psd(psd: np.ndarray, template: np.ndarray, config: P.Config) -> N
     f = np.arange(m) / len(psd)
     weight = sig[:m] / psd[:m]
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.semilogy(f, psd[:m] / psd[:m].max(), color="C7", label="noise N(f)")
-    ax.semilogy(f, sig[:m] / sig[:m].max(), color="C1", label="signal |S(f)|^2")
-    ax.semilogy(f, weight / weight.max(), color="C3", lw=2, label="optimal weight |S|^2 / N")
+    ax.semilogy(f, psd[:m] / psd[:m].max(), color="C7", label=r"noise $N(f)$")
+    ax.semilogy(f, sig[:m] / sig[:m].max(), color="C1", label=r"signal $|S(f)|^2$")
+    ax.semilogy(f, weight / weight.max(), color="C3", lw=2,
+                label=r"optimal weight $|S|^2 / N$")
     ax.set_ylim(1e-4, 2.0)
     ax.set(xlabel="Frequency (cycles/sample)", ylabel="Normalized power",
            title="Optimal-filter frequency content (real noise)")

@@ -1,8 +1,5 @@
 ﻿#!/usr/bin/env python3
-"""
-boxcar.py
-=========
-Standalone boxcar (top-hat integral) analysis for real colored noise.
+"""Standalone boxcar (top-hat integral) analysis for real colored noise.
 
 Integrates the waveform over a top-hat window around the pulse.  The window
 length is chosen to maximize the REAL signal-to-noise: the signal is the template

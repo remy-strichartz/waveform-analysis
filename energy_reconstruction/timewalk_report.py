@@ -1,96 +1,45 @@
 #!/usr/bin/env python3
-"""
-timewalk_report.py
-==================
-Diagnose the residual time-walk that compare.py reports as a single number.
+"""Diagnose the residual time-walk that compare.py reports as a single number.
 
 `timewalk_slope` is a LINE fit to the binned-median peak-time vs amplitude.  That number
 is only meaningful if (a) the trend really is a line, (b) it is stable against its own
-binning, and (c) the estimator does not manufacture it.  On run00270 none of those can be
-assumed: the PMT channels' trend is curved (the line fits at chi2/dof 8-13), and on the
-channels whose amplitude range never reaches MIP scale (ch4, ch7) the slope moves by
-several samples/amp when you merely change n_bins.  This tool measures all three, plus the
-cause.
+binning, and (c) the estimator does not manufacture it.  This tool measures all three,
+plus the leading cause candidates.
 
     python timewalk_report.py --input run00270_ch0.h5 --save-plots
 
 What it runs, per channel:
 
-  TREND    binned-median peak time vs amplitude WITH per-bin error bars (the shipped
-           profile has none), fit by three models -- constant, linear (a + b*A) and
-           a + b/A -- compared by AIC.  Also refits the line above `high_amp` only: a
-           trend that lives entirely in the low-amplitude bins is not a walk of the
-           physics pulses.
+  TREND    binned-median peak time vs amplitude WITH per-bin error bars, fit by three
+           models -- constant, linear (a + b*A) and a + b/A -- compared by AIC.  Also
+           refits the line above `high_amp` only: a trend living entirely in the
+           low-amplitude bins is not a walk of the physics pulses.
 
   BINNING  the same slope at n_bins 8..30.  A spread comparable to the slope means the
            reported number is an artifact of the binning, not a measurement.
 
-  CLOSURE  a null test: synthetic events with NO true walk by construction (A_i *
-           the channel's own template, plus colored noise with its own PSD shape scaled
-           to its own noise sigma) pushed through the SAME kernel, trigger and OF
-           amplitude.  The measured slope MUST come back ~0.  Run with a deliberately
-           mis-centered search window too, since a noise-dominated low-amplitude
-           population regressing toward the window center is the obvious way an
-           unbiased estimator could still fake a walk.  (Measured: it does not -- every
-           scenario returns |slope| < 0.25, so a nonzero slope on real data is real.)
+  CLOSURE  a null test: synthetic events with NO true walk (A_i * the channel's own
+           template, plus colored noise with its own PSD shape) pushed through the SAME
+           kernel, trigger and OF amplitude.  The measured slope MUST come back ~0 --
+           and does (|slope| < 0.25 in every scenario, including a deliberately
+           mis-centered search window), so a nonzero slope on real data is real.
 
-  TEMPLATE rebuild the template from DIM pulses only and from BRIGHT pulses only, re-trigger
-           the real data with each, and re-measure the walk.  On run00270's analog bank it
-           roughly DOUBLES with a bright template and halves with a dim one.  TEMPLATE
-           QUALITY IS REFUTED as the cause (measured 2026-07-14 on ch1 and ch2): degrading
-           the bright template to the dim template's quality -- colored noise added at the
-           dim averaging level, smearing, or a rebuild from a dim-noise-sized bright SUBSET
-           -- leaves the walk at the bright value (ch2: dim -1.06 vs bright -2.76, degraded
-           bright -2.76/-2.76/-3.04), and a triage-CLEAN-only rebuild of both bands keeps
-           the split (-1.04 / -3.01), so pileup/clipping contamination is out too.
-           The swap effect then DECOMPOSES (measured on ch2):
-             * the bright-band MEAN template is ~4 samples wider in FWHM than the median
-               of the same aligned rows -- a minority tail of events (unresolved pileup /
-               afterpulses, bright-biased) pulls the MEAN wide.  Real build artifact, but
-               worth only ~10% of the split (median template: walk -2.45 vs mean -2.76);
-             * the split SURVIVES width matching (bright MEDIAN, FWHM 58.0 vs dim 58.6,
-               still walks -2.45 vs -1.08) and a 0-3 sample smear scan (-2.45 -> -2.35),
-               so bulk width and smearing are out;
-             * after removing a walk-NEUTRAL ~1.7-sample window-phase offset, the dim-
-               and bright-built median templates agree to <~0.7% of peak everywhere
-               EXCEPT the EARLY TAIL (+3..+60 samples past the peak, largest ~+18, 1.7%
-               of peak) -- but that tail structure is REFUTED as the walk's driver: the
-               band-stacked early-tail amplitude trend, measured across 8 channels, does
-               not correlate with the shipped walk (Pearson -0.34 / Spearman -0.26;
-               signs inconsistent -- ch0 walks -1.18 with a zero tail trend, ch3 has the
-               strongest tail trend and the smallest walk).
-           So the swap effect's operative template difference is real, reproducible,
-           and still UNIDENTIFIED after noise, smear, width, subset size, contamination
-           and early-tail content were each individually matched or refuted.  One gap
-           worth noting for the next attempt: the CLOSURE test certifies the estimator
-           on GAUSSIAN colored noise -- a walk arising from the interplay of the real
-           (non-Gaussian, burst/pickup-phase) noise with different template fine
-           structure would evade it.
+  TEMPLATE rebuild the template from DIM pulses only and from BRIGHT pulses only,
+           re-trigger the real data with each, and re-measure the walk.
 
   SHAPE    pulse shape per amplitude band, template-free, WITH THE PICKUP NOTCHED OUT
-           (see shape_vs_amplitude -- notching is not optional; un-notched, this panel lies).
-           Measured: the RISING EDGE (rise 10-90, crest lag) is amplitude-INDEPENDENT on
-           every channel.  Since 2026-07-14 the panel also measures the WIDTH (FWHM and
-           the decay-side half-widths), because the template-swap probe found the
-           dim/bright-band templates differ in exactly that -- the walk's remaining suspect.
+           (see shape_vs_amplitude -- notching is not optional; un-notched, the pickup
+           ripple re-coheres in the amplitude-selected median stacks and fakes an
+           amplitude-dependent shape).  Rise metrics AND the width/decay-side metrics
+           are reported, since the template-swap probe points at the width.
 
-WHAT CAUSES THE WALK IS STILL UNKNOWN, but it is now cornered.  Measured on run00270 and RULED
-OUT: the coherent pickup (notch the line out of the data, rebuild the whole noise model, and
-70-80% of the walk survives); an amplitude-dependent RISING EDGE (rise and crest lag are flat
-once notched -- note that scan never covered the width/decay side, which is exactly where the
-template-swap finding above points); a second "fast" pulse species in the dim population (that
-was the pickup artifact, not a species); template QUALITY (see TEMPLATE); and LIGHT TRANSIT /
-POSITION (2026-07-15).  That last one deserves its epitaph: the analog bank is the 8
-fiber-swirl mini-modules of the CUPID prototype panel (arXiv:2505.06129), the trigger
-footprint sits at the ch0 corner, and cross-channel amplitudes DO encode muon position
-(adjacency reproduced, corr vs layout distance rho=-0.74) -- but at fixed amplitude the OF
-peak time is INDEPENDENT of a validated rest-of-bank position proxy (rho 0.00-0.04, n~3000
-per band, ch0-ch3), the walk does not collapse within position bands, and 94% of triggered
-muons land on ch0's cell so the position lever (~0.1 samples of transit) is 20-40x too small
-regardless.  The walk itself is real -- CLOSURE
-says the estimator is unbiased -- but small: -2.3 to -3.7 samples across each analog channel's
-whole amplitude range, well under one sigma of the ~6.5-sample timing jitter, and harmless for
-energy reconstruction.  Don't re-propose the four dead hypotheses without new evidence.
+The walk's CAUSE remains unidentified, but the following were each measured and RULED
+OUT on this project's reference data: the coherent pickup, an amplitude-dependent
+rising edge, a second "fast" pulse species (a pickup artifact), template quality, and
+light transit / position.  The walk itself is real (CLOSURE certifies the estimator)
+but small -- a few samples across the whole amplitude range, well under the timing
+jitter, and harmless for energy reconstruction.  Don't re-propose the dead hypotheses
+without new evidence.
 
 Nothing here is a cut or a correction -- it is a QC report.
 """
