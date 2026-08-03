@@ -31,7 +31,9 @@ pre-pulse region).
 1. **Good-time-interval gate** (`--exclude-hours`, off by default): drops events
    *before* anything else, so an excluded noisy period enters neither the noise model
    nor the spectrum.
-2. **Model pass on a bounded prefix** (first 20k kept events): auto polarity
+2. **Model pass on a bounded, run-spanning subsample** (up to 20k kept events; when
+   the file is larger, contiguous slabs spread evenly across the run — a run-average
+   model, never an early-run one): auto polarity
    (`polarity_vote`) → auto pulse window (`estimate_window_params`) → robust noise
    sigma → per-event baseline subtraction → ADC dynamic range → triage-cleaned
    template set (NOISE/PILEUP/rail-clipped dropped **for the template only**) →
@@ -52,7 +54,17 @@ pre-pulse region).
      tail) above — then the **equal-area cut** between them, with a bootstrap error
      bar (`--cut-bootstrap`, default 20).
    * `muon` (triage-cleaned / hodoscope-selected data): the same MIP line, no gamma,
-     no cut.
+     no cut. The MPV carries its own bootstrap error bar (`bootstrap_mpv`, same
+     `--cut-bootstrap` knob; ~1.2% at run00270 statistics — a percent-level "shift"
+     between runs is usually this noise).
+
+   Before either fit, `--gain-correct` (opt-in) removes the measured per-block gain
+   drift from the observable: block medians (gain-equivariant, `run_stability`'s
+   estimator) rescale events to the run-average gain, with refusals when the drift is
+   consistent with constant or the motion is a shape change rather than a gain change
+   (see `gain_correction`). It needs the `/event_time_rel_s` axis and leaves behind a
+   quoted residual gain systematic — an analysis choice for the provenance line, like
+   `--mode`.
    Rail-clipped events are always excluded from the *fit*; `--exclude-pileup`
    optionally gates high-chi2 events with an amplitude-aware threshold.
    Two reliability guards (`min_mip_snr`, `min_mip_over_trigger`) refuse a cut when

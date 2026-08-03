@@ -85,7 +85,7 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter1d
 from scipy.optimize import curve_fit
 from scipy.special import erf
-from scipy.stats import landau, rankdata, trim_mean
+from scipy.stats import chi2 as chi2_dist, landau, rankdata, trim_mean
 
 # The shared triage primitives -- flat-top saturation detector, polarity vote and
 # median-pulse extent rule -- live in common/waveform_ops.py, so this pipeline calls an
@@ -248,8 +248,10 @@ class Config:
     # an empty gap, and clean channels' landmarks are bit-identical with the guard on.
     comb_rho_min: float = 0.4
     # Bootstrap replicates used to put an ERROR BAR on the gamma/muon cut (see
-    # bootstrap_cut).  The cut has no analytic uncertainty -- it falls out of a valley walk,
-    # a BIC mixture and an area balance -- so without this it is reported as a bare number
+    # bootstrap_cut) AND, in muon mode, on the MPV (see bootstrap_mpv -- one knob, both
+    # are "resample the events, refit with the chosen model").  The cut has no analytic
+    # uncertainty -- it falls out of a valley walk, a BIC mixture and an area balance --
+    # so without this it is reported as a bare number
     # and read as exact, though its sampling std is 4-14% depending on the channel.
     # COST: one full spectrum refit per replicate, and _langau rebuilds a Landau PDF +
     # convolution on every curve_fit evaluation, so a fit is ~2 s -- 20 replicates roughly
@@ -337,6 +339,26 @@ class Config:
     # recovered axis, waveform_files/<run>/times/<stem>_times.h5.
     exclude_hours: tuple = ()
     times_path: Path | None = None
+
+    # Opt-in per-block GAIN-DRIFT correction (see gain_correction).  run_stability
+    # measures the gain (via gain-equivariant quantiles) drifting over run00270 -- 1.3%
+    # rms on ch9, 9.7% on ch10 -- and rejects gain constancy on most channels, yet
+    # nothing here consumed that: a whole-run spectrum fit integrates the drift into the
+    # Landau's Gaussian sigma and reports instrument motion as detector resolution.
+    # With this on, the observable is split into equal-count time blocks, each block's
+    # gain is measured as its own Q50 (median -- gain-equivariant, no event selection,
+    # exactly run_stability's estimator), and events are rescaled to the run-average
+    # gain.  The correction REFUSES to run (with the reason logged) when the drift is
+    # statistically consistent with constant -- rescaling by a noisy estimate only adds
+    # variance -- or when the block motion is not gain-like (Q75/Q50 varies: a shape or
+    # population change, which a gain factor must not paper over).  Off by default:
+    # every existing result is unchanged, and turning it on is an ANALYSIS choice that
+    # belongs in the provenance line, like --mode.
+    gain_correct: bool = False
+    # Target events per gain block.  ~1000 gives a ~1-2% stat error per block on
+    # run00270 (matching run_stability's 15-block split of the same run) and spans
+    # ~3 h at run00270's trigger rate -- the HVAC timescale the drift lives on.
+    gain_block_events: int = 1000
 
     seed: int = 20240601
     show_plots: bool = True
@@ -483,6 +505,9 @@ def estimate_window_params(waveforms: np.ndarray, config: Config,
     template_pre = int(np.clip(rise + pad, 10, center))
     template_post = int(np.clip(fall + pad, 10, L - center - 1))
     search_pad = int(np.clip(search_pad, 10, max(10, center - 1)))
+    # What the pulse itself asked for, before the noise-budget loop below shrinks
+    # anything -- kept so the truncation can be REPORTED rather than silent.
+    want_pre, want_post = template_pre, template_post
 
     # Guarantee the region noise_stop actually hands out is pulse-free, which needs
     #     2 * template_pre + template_post <= center - search_pad
@@ -504,6 +529,28 @@ def estimate_window_params(waveforms: np.ndarray, config: Config,
             break
         search_pad = max(10, center - (2 * template_pre + template_post))
         budget = center - search_pad
+
+    # Say when the budget loop cut the template short of the pulse's own measured
+    # extent.  On the 2.5 GS/s PMT-scan records the pulses sit EARLY in the record
+    # (center ~265 of 1012) with ~+/-120 samples of trigger jitter, so the loop
+    # legitimately crushes a ~400-sample decay tail down to ~11 samples -- the OF
+    # stays self-consistent (template and data windows share the same cut), but the
+    # template plot ends mid-decay and the OF weight keeps power out to Nyquist
+    # (the window-edge step is real, matched signal content).  That deserves a
+    # loud pointer to the geometry rather than a silent, wonky-looking plot.
+    if template_post < want_post or template_pre < want_pre:
+        logger.warning(
+            "Auto-window: the measured pulse extent wants template_pre=%d/"
+            "template_post=%d but the pre-pulse noise budget allows %d/%d: pulses "
+            "sit early in the record (center=%d of %d) with +/-%d samples of "
+            "trigger jitter, and the noise model must fit before the earliest rise "
+            "(2*template_pre + template_post <= center - search_pad = %d). The "
+            "template (and the OF frequency weight) will show a truncated decay "
+            "tail -- record geometry, not a pulse-shape measurement. More "
+            "pre-trigger delay in the DAQ, or an explicit --search-pad below %d, "
+            "buys tail samples.",
+            want_pre, want_post, template_pre, template_post, center, L,
+            search_pad, budget, search_pad)
 
     return {"pulse_center": center, "search_pad": search_pad,
             "template_pre": template_pre, "template_post": template_post}
@@ -710,8 +757,9 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
                         "median(chi2). Default: 5.")
     p.add_argument("--cut-bootstrap", type=int, default=None, metavar="N",
                    help="Bootstrap replicates used to put an ERROR BAR on the gamma/muon cut "
-                        "(resamples the events and refits). The cut's sampling std is 4-14%% "
-                        "depending on the channel, so without this a 10%% change between runs "
+                        "and, in muon mode, on the MPV (resamples the events and refits with "
+                        "the chosen model). The cut's sampling std is 4-14%% and the MPV's "
+                        "~1.2%% at run00270 statistics, so without this a change between runs "
                         "reads as physics when it is noise. Costs one spectrum refit each "
                         "(~2 s), so it roughly doubles a run. Default: 20; 0 disables.")
     p.add_argument("--exclude-hours", type=float, nargs=2, action="append", default=None,
@@ -727,6 +775,17 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
                         "needed when the input itself has no time axis (an older conversion). "
                         "Default: the dataset's own "
                         "waveform_files/<run>/times/<input-stem>_times.h5 if it exists.")
+    p.add_argument("--gain-correct", action="store_true",
+                   help="Correct the measured gain drift before fitting: split the run into "
+                        "equal-count time blocks, track the gain by each block's median "
+                        "amplitude (gain-equivariant, no event selection -- run_stability's "
+                        "estimator), and rescale events to the run-average gain. Refuses (with "
+                        "the reason logged) when the drift is consistent with constant or the "
+                        "motion is not gain-like. Opt-in: an analysis choice that belongs in "
+                        "the provenance line. Needs a time axis (see --exclude-hours).")
+    p.add_argument("--gain-block-events", type=int, default=None,
+                   help="Target events per gain-correction block. Default: 1000 (~1-2%% stat "
+                        "error per block on run00270, ~3 h of run time -- the HVAC timescale).")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return p
 
@@ -801,6 +860,10 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
         kwargs["exclude_hours"] = tuple((float(lo), float(hi)) for lo, hi in args.exclude_hours)
     if getattr(args, "times", None) is not None:
         kwargs["times_path"] = resolve_input(args.times)
+    if getattr(args, "gain_correct", False):
+        kwargs["gain_correct"] = True
+    if getattr(args, "gain_block_events", None) is not None:
+        kwargs["gain_block_events"] = args.gain_block_events
     # Window params: any set explicitly are recorded so auto-estimation leaves them alone.
     kwargs["auto_window"] = args.auto_window
     explicit = []
@@ -1259,6 +1322,22 @@ def build_template(corrected: np.ndarray, noise_sigma: float, config: Config):
     bright = region_max > config.template_sigma * noise_sigma
     if int(bright.sum()) < 50:
         bright = region_max >= np.percentile(region_max, 90.0)
+        # The percentile fallback was sized for LARGE dim files, where "the top 10%"
+        # is hundreds of pulses.  On a SMALL file it starves: the 13-event 800 V scan
+        # run gave a 2-event "template" that was pure noise, and the OF weight
+        # |S|^2/N built from it upweighted that noise at every frequency.  Everything
+        # here already survived _clean_model_set, so floor the fallback at the
+        # brightest min(n, 25) events -- at this size the sqrt(N) of the average
+        # matters more than brightness purity.  Files where the percentile already
+        # selects >= 25 pulses are untouched.
+        floor_n = min(region_max.size, 25)
+        if int(bright.sum()) < floor_n:
+            bright = np.zeros(region_max.shape, dtype=bool)
+            bright[np.argsort(region_max)[::-1][:floor_n]] = True
+            logger.warning("Template: the top-10%% brightness fallback picked fewer "
+                           "than %d of the %d model events; averaging the brightest "
+                           "%d instead (small-file floor). Expect a noisier template.",
+                           floor_n, region_max.size, floor_n)
     idx = np.flatnonzero(bright)
     pk = region_start + guide[idx][:, region].argmax(axis=1)
 
@@ -1332,6 +1411,16 @@ def _rail_clipped_mask(win: np.ndarray, noise_sigma: float, polarity: str,
     top_band = peak_h >= peak_h.max() - tol
     n_top = int(top_band.sum())
     clipped_pileup = n_top >= 3 and n_top / peak_h.size >= 0.002
+    # The docstring's "noise records pile up at the noise floor and would be
+    # mistaken for the rail" caveat, ENFORCED: a whole file of near-noise pulses
+    # satisfies the pile-up counts trivially (the 13-event 800 V scan run, peaks
+    # 13-18 ADC, all inside one 3-sigma band, "found" a 15-ADC rail on a 3291-ADC
+    # range and clipped 7/13 events).  A real rail sits far above the noise scale
+    # by construction, so require the candidate rail to clear 2*tol (>= 6 sigma);
+    # every genuine rail seen (run00270_ch0 ~3578 ADC, the 1550/1700 V scan runs
+    # >= 1400 ADC) passes by orders of magnitude.
+    if clipped_pileup and float(np.median(peak_h[top_band])) <= 2.0 * tol:
+        clipped_pileup = False
     if clipped_pileup:
         rail = float(np.median(peak_h[top_band]))
     elif adc_range is not None and np.isfinite(adc_range) and adc_range > 0:
@@ -1692,6 +1781,32 @@ def _model_prefix_size(config: Config) -> int:
     return max(config.template_cap, config.psd_cap, 20_000)
 
 
+def _model_rows(rows: np.ndarray, size: int, n_slabs: int = 32) -> np.ndarray:
+    """`size` file rows for the model set, drawn as `n_slabs` contiguous slabs spread
+    evenly across `rows` (the analyzed rows, in file = time order).
+
+    Only reached when the file holds MORE analyzed rows than the model cap.  The model
+    set used to be the first `size` rows -- the EARLY run only -- and the PSD, template
+    and trigger threshold it produces were then extrapolated over a run whose gain and
+    noise are measured to drift (run_stability rejects noise-sigma constancy on every
+    run00270 channel).  Slabs spread across the run make the model describe the run it
+    is applied to; each slab is contiguous so the read is a handful of HDF5 slices
+    rather than `size` scattered row lookups (which on a chunked dataset costs one
+    chunk read PER ROW).
+
+    The slabs cannot overlap: consecutive starts are >= (n - L) / (n_slabs - 1) >= L
+    apart because n > size >= n_slabs * L.  Floor division may leave up to
+    n_slabs - 1 rows unused (<0.2% of the cap) -- the cap is a memory bound, not a
+    quota, so undershooting it is fine and overshooting it is not."""
+    n = int(rows.size)
+    if n <= size:
+        return rows
+    slab = max(size // n_slabs, 1)
+    starts = np.floor(np.linspace(0, n - slab, n_slabs)).astype(np.int64)
+    idx = (starts[:, None] + np.arange(slab)[None, :]).ravel()
+    return rows[np.unique(idx)]
+
+
 def prepare(config: Config, chunk_events: int | None = None) -> Prepared:
     """Two-pass, streaming preparation.
 
@@ -1715,25 +1830,33 @@ def prepare(config: Config, chunk_events: int | None = None) -> Prepared:
     keep = gti_mask(config, n_total)
     n_analyzed = n_total if keep is None else int(keep.sum())
 
-    # --- Pass 1: model building on a bounded prefix -------------------------------
+    # --- Pass 1: model building on a bounded model set ----------------------------
+    # When the file fits under the cap the model set is EVERY analyzed row (bit-identical
+    # to the old prefix read).  When it does not, the rows are drawn as contiguous slabs
+    # spread evenly across the run (_model_rows) -- the model set used to be the first
+    # `prefix_size` rows, so on a long run the PSD / template / trigger threshold
+    # described the EARLY run only and were extrapolated over a measured gain/noise drift.
     prefix_size = _model_prefix_size(config)
-    if keep is None:
-        prefix = load_waveforms(config, max_events=prefix_size)
+    kept_rows = np.arange(n_total, dtype=np.int64) if keep is None else np.flatnonzero(keep)
+    if kept_rows.size <= prefix_size:
+        # max_events path when nothing is excluded: a plain leading slice, not a
+        # (slower) explicit-rows read of the same thing.
+        prefix = (load_waveforms(config, max_events=prefix_size) if keep is None
+                  else load_waveforms(config, rows=kept_rows))
     else:
-        # Take the first `prefix_size` KEPT rows, not the first rows of the file -- a gate
-        # covering the start of the run would otherwise gut (or empty) the model set.
-        prefix = load_waveforms(config, rows=np.flatnonzero(keep)[:prefix_size])
+        prefix = load_waveforms(config, rows=_model_rows(kept_rows, prefix_size))
     # BIAS GUARD: the noise model (PSD, template, noise sigma, trigger threshold) is built
-    # from a bounded prefix and then applied to every event in the run.  That is only sound
-    # if the run is stationary in noise -- and timing_stability/run_stability.py exists
-    # precisely because it may not be.  When the file is larger than the prefix, the model
-    # describes the EARLY run and is extrapolated to the rest, so say so.
+    # from a bounded, run-spanning subsample and then applied to every event.  That is
+    # sound on AVERAGE, but a single pooled model still cannot describe a time-VARYING
+    # noise -- and timing_stability/run_stability.py exists precisely because the noise
+    # does vary.  When the file is larger than the cap, say so.
     if n_analyzed > prefix_size:
-        logger.warning("Noise model (PSD / template / trigger threshold) is built from the "
-                       "first %d of %d events -- the EARLY run -- and applied to all of them. "
-                       "Check timing_stability/run_stability.py for a noise drift before "
-                       "trusting time-integrated results; exclude a bad window with "
-                       "--exclude-hours.", prefix_size, n_analyzed)
+        logger.warning("Noise model (PSD / template / trigger threshold) is built from a "
+                       "%d-event subsample spread across all %d events, then applied to "
+                       "every one of them: a run-average model.  Check timing_stability/"
+                       "run_stability.py for noise drift before trusting time-integrated "
+                       "results; exclude a bad window with --exclude-hours.",
+                       prefix_size, n_analyzed)
     config = resolve_polarity(prefix, config)         # decide ONE sign for the whole channel
     config = resolve_auto_window(prefix, config)      # fill in the pulse window from the data
     pooled, noise_sigma = robust_noise_sigma(prefix, config)
@@ -1802,6 +1925,10 @@ def prepare(config: Config, chunk_events: int | None = None) -> Prepared:
     if not kept_corr:
         raise ValueError("No window triggered.")
     corrected = np.concatenate(kept_corr)
+    # The per-chunk blocks are COPIES (fancy-indexed), so until they are dropped the
+    # triggered set is resident twice -- the difference between fitting a multi-million
+    # event run in RAM and not.
+    del kept_corr
     n_trig = corrected.shape[0]
     events = pd.DataFrame({
         # event_number indexes `corrected` directly (rows are already the triggered
@@ -2919,12 +3046,17 @@ def fit_muon_line(centers, y, smoothed, fit_lo: int, bin_w: float,
     return line
 
 
-def fit_muon_spectrum(values, config: Config):
+def fit_muon_spectrum(values, config: Config, line_model: dict | None = None):
     """Fit the muon/MIP line (fit_muon_line) to the WHOLE pulse-height spectrum.
     This is the right model for cleaned, hodoscope-triggered, mostly-muon data: no
     gamma continuum is added and no discrimination cut is made.  Returns the fit
     curve, the MPV (in the ADC-derived observable units), the Landau width eta
-    (intrinsic energy-loss straggling) and the Gaussian sigma (detector smearing)."""
+    (intrinsic energy-loss straggling) and the Gaussian sigma (detector smearing).
+
+    `line_model` (from line_model_of) imposes an already-made tail-model choice on the
+    line fit instead of re-running the BIC selection -- bootstrap replicates pass the
+    full-data choice so they resample the DATA and not the model (see bootstrap_mpv,
+    and bootstrap_cut for why that is both faster and more correct)."""
     centers, counts, smoothed = build_spectrum(values, config)
     y = counts.astype(float)
     bin_w = centers[1] - centers[0]
@@ -2982,11 +3114,69 @@ def fit_muon_spectrum(values, config: Config):
            "eta": float(bin_w), "sigma": float(bin_w),
            "ok": False, "fit_chi2": np.nan, "cut": np.nan,
            "fit_lo_x": float(centers[fit_lo]), "n_low_excluded": int(n_below)}
-    line = fit_muon_line(centers, y, smoothed, fit_lo, bin_w)
+    line = fit_muon_line(centers, y, smoothed, fit_lo, bin_w, line_model=line_model)
     if line is None:
         return out
     out.update({k: line[k] for k in _LINE_KEYS}, ok=True)
     return out
+
+
+def bootstrap_mpv(values, config: Config, fit: dict, n_resamples: int | None = None) -> dict:
+    """Statistical uncertainty of the muon-mode MPV, by resampling the EVENTS.
+
+    bootstrap_cut already does this for the gamma-muon CUT (and bootstraps the MPV
+    alongside it), but muon mode returned before it was ever called -- so the one number
+    the whole muon-mode analysis is about was quoted bare, while the measured sampling
+    std is ~1.2% on run00270_ch9 at full statistics (and 2.7% at 5k events, 8% at 1k:
+    exactly the scale of "shifts" that get mistaken for physics between pipeline
+    versions or run periods).
+
+    Same discipline as bootstrap_cut: the replicates REUSE the full-data fit's
+    BIC-selected tail model (line_model_of -> _refit_tail) rather than re-selecting per
+    replicate.  Correctness -- the error bar must describe the sampling spread of the
+    statistic we REPORT, which is the MPV of the model we chose, not the discrete jitter
+    of the selection (a replicate flipping between the Landau and the tail line jumps
+    the MPV 8-15% in one step).  Cost -- a full fit with selection is ~23 s; the seeded
+    refit is ~1-2 s, which is what makes 20 replicates affordable.
+
+    The landmark walk and fit floor ARE re-derived per replicate (fit_muon_spectrum),
+    so their sampling jitter is included -- they are part of the estimator.
+
+    Returns {} when disabled (config.cut_bootstrap <= 0), when the fit failed, or when
+    too few replicates converge to say anything."""
+    n = int(config.cut_bootstrap if n_resamples is None else n_resamples)
+    a = np.asarray(values, dtype=float)
+    a = a[np.isfinite(a)]
+    if n <= 1 or a.size < 50 or not fit.get("ok"):
+        return {}
+    line_model = line_model_of(fit)
+    rng = np.random.default_rng(config.seed)
+    mpvs = []
+    # Replicate fits must not LOG (same reasoning as bootstrap_cut: n copies of the
+    # valley-population message would bury the one from the real fit).
+    was_disabled = logger.disabled
+    logger.disabled = True
+    try:
+        for _ in range(n):
+            rep = a[rng.integers(0, a.size, a.size)]
+            try:
+                f = fit_muon_spectrum(rep, config, line_model)
+            except Exception:              # a pathological replicate must not kill the run
+                continue
+            m = f.get("mpv", np.nan)
+            if f.get("ok") and np.isfinite(m):
+                mpvs.append(float(m))
+    finally:
+        logger.disabled = was_disabled
+    if len(mpvs) < max(5, n // 4):
+        logger.info("MPV bootstrap: only %d/%d replicates converged; not reporting an "
+                    "uncertainty.", len(mpvs), n)
+        return {}
+    mpvs = np.asarray(mpvs)
+    return {"mpv_std": float(mpvs.std(ddof=1)),
+            "mpv_lo": float(np.percentile(mpvs, 16)),
+            "mpv_hi": float(np.percentile(mpvs, 84)),
+            "mpv_n_resamples": int(mpvs.size)}
 
 
 def muon_summary(values, fit,
@@ -3162,6 +3352,143 @@ def pileup_mask_from_chi2(chi2: np.ndarray, config: Config,
     return finite & np.isfinite(thresh) & (chi2 > thresh)
 
 
+# Gain correction internals (see gain_correction; deliberately not Config knobs -- they
+# are measurement hygiene, not analysis choices).
+_GAIN_MIN_BLOCKS = 6      # fewer blocks cannot distinguish a drift from block noise
+_GAIN_BOOTSTRAP = 200     # replicates per block quantile; std of the std ~5% of itself
+
+
+def gain_correction(observable, prep: Prepared, config: Config):
+    """Per-block gain-drift correction of the observable (opt-in: config.gain_correct).
+
+    Returns (corrected_observable, info) -- or None when the correction refuses to run,
+    which is a RESULT, not a failure: the reasons are logged and each protects the
+    numbers downstream.
+
+    METHOD.  The triggered events are split into equal-count blocks along the run's own
+    time axis (/event_time_rel_s, the same axis --exclude-hours uses).  Each block's gain
+    is its Q50: a pure gain change scales every quantile of the pulse-height distribution
+    identically, so the median tracks gain with NO event selection and NO spectral model
+    -- run_stability's estimator, consumed here instead of merely admired.  Events are
+    rescaled by (run-average Q50) / (their block's Q50), so the corrected observable
+    keeps the run-average absolute scale and only the time VARIATION is removed.
+    Piecewise-constant per block: that is the granularity the drift was measured at, and
+    interpolating between blocks would impose a smoothness the measurement does not own.
+
+    THE THREE REFUSALS (each measured on this data, not assumed):
+      1. Too few events for >= `_GAIN_MIN_BLOCKS` blocks -- a "drift" measured on a
+         handful of points is indistinguishable from its own noise.
+      2. Drift consistent with CONSTANT (chi2 of the block Q50s against their weighted
+         mean, p >= 0.05): correcting by a statistically-flat sequence of noisy medians
+         only injects that noise into every event.
+      3. The motion is NOT gain-like: Q75/Q50 varying across blocks (p < 0.01) means the
+         distribution is changing SHAPE, not scale -- a population or resolution change a
+         multiplicative factor must not paper over.  Q25/Q50 variation only WARNS: the
+         spectrum is trigger-truncated from below at a FIXED threshold, so a genuine gain
+         drop moves real events across the floor and shifts Q25 even under a pure gain
+         change; refusing on it would refuse exactly the large drifts most worth
+         correcting.  Q75/Q50 has no such excuse -- both quantiles sit far above the floor.
+
+    HONEST ERROR ACCOUNTING: the block Q50s carry their own bootstrap errors, so the
+    correction leaves behind a residual gain systematic of roughly mean(err)/sqrt(B) --
+    reported in `info` and printed next to the result, because on a channel like ch9 it
+    is the same order as the MPV's statistical error and quoting one without the other
+    would overstate the precision."""
+    obs = np.asarray(observable, dtype=float)
+    t_h = event_time_hours(config, dataset_shape(config)[0])
+    if t_h is None:
+        raise SystemExit(
+            "--gain-correct needs a per-event time axis, and this input has none.\n"
+            "  MIDAS runs: re-extract the channel (file_manipulation/extract_channels.py "
+            "recovers /event_time_rel_s\n  from the header bank), or build a times file "
+            "with timing_stability/event_times.py and pass --times.")
+    t = t_h[prep.events["original_index"].to_numpy()]
+    n = obs.size
+    n_blocks = n // max(config.gain_block_events, 1)
+    if n_blocks < _GAIN_MIN_BLOCKS:
+        logger.warning("Gain correction: only %d events -> %d blocks of %d (need >= %d "
+                       "to measure a drift); NOT applied.", n, n_blocks,
+                       config.gain_block_events, _GAIN_MIN_BLOCKS)
+        return None
+    # Events are in file = time order already; equal-count blocks so every block's
+    # quantile carries the same statistical weight.
+    splits = np.array_split(np.arange(n), n_blocks)
+    rng = np.random.default_rng(config.seed)
+    q50 = np.empty(n_blocks); e50 = np.empty(n_blocks)
+    r25 = np.empty(n_blocks); er25 = np.empty(n_blocks)
+    r75 = np.empty(n_blocks); er75 = np.empty(n_blocks)
+    t_mid = np.empty(n_blocks)
+    for b, sel in enumerate(splits):
+        v = obs[sel]; v = v[np.isfinite(v)]
+        t_mid[b] = float(np.median(t[sel]))
+        q25_b, q50_b, q75_b = np.percentile(v, [25.0, 50.0, 75.0])
+        q50[b] = q50_b
+        r25[b], r75[b] = q25_b / q50_b, q75_b / q50_b
+        # Bootstrap the block's quantiles IN ONE resample matrix so the ratio errors
+        # carry the within-block correlation between the two quantiles.
+        reps = v[rng.integers(0, v.size, (_GAIN_BOOTSTRAP, v.size))]
+        q25s, q50s, q75s = np.percentile(reps, [25.0, 50.0, 75.0], axis=1)
+        e50[b] = float(np.std(q50s, ddof=1))
+        er25[b] = float(np.std(q25s / q50s, ddof=1))
+        er75[b] = float(np.std(q75s / q50s, ddof=1))
+
+    def _const_p(vals, errs):
+        w = 1.0 / np.maximum(errs, 1e-12) ** 2
+        mean = float(np.sum(vals * w) / np.sum(w))
+        chi2 = float(np.sum(((vals - mean) / np.maximum(errs, 1e-12)) ** 2))
+        return mean, chi2, float(chi2_dist.sf(chi2, n_blocks - 1))
+
+    ref, chi2_50, p50 = _const_p(q50, e50)
+    if p50 >= 0.05:
+        logger.info("Gain correction: block Q50 drift is consistent with constant "
+                    "(chi2/dof = %.1f/%d, p = %.2g); NOT applied -- rescaling by a "
+                    "statistically-flat sequence of noisy medians only adds variance.",
+                    chi2_50, n_blocks - 1, p50)
+        return None
+    _, chi2_75, p75 = _const_p(r75, er75)
+    if p75 < 0.01:
+        logger.warning("Gain correction: Q75/Q50 is NOT constant across blocks "
+                       "(chi2/dof = %.1f/%d, p = %.2g) -- the spectrum is changing "
+                       "SHAPE, not just scale, and a gain factor must not paper over a "
+                       "population or resolution change; NOT applied.  Find the window "
+                       "with timing_stability/run_stability.py and --exclude-hours it.",
+                       chi2_75, n_blocks - 1, p75)
+        return None
+    _, chi2_25, p25 = _const_p(r25, er25)
+    if p25 < 0.01:
+        logger.warning("Gain correction: Q25/Q50 varies across blocks (p = %.2g).  This "
+                       "can be the fixed trigger floor interacting with the drift (a "
+                       "gain drop moves real events across the threshold) -- but it can "
+                       "also be a low-side population change.  Applying anyway; check "
+                       "run_stability's per-block series before quoting.", p25)
+    factors = ref / q50
+    drift_rms = float(np.std(q50, ddof=1) / ref)
+    resid_syst = float(np.mean(e50 / q50) / math.sqrt(n_blocks))
+    worst = float(np.max(np.abs(factors - 1.0)))
+    if worst > 0.25:
+        logger.warning("Gain correction: the largest block correction is %.0f%% -- a "
+                       "drift that size is better EXCLUDED (--exclude-hours) than "
+                       "rescaled, because the noise model is a run average that cannot "
+                       "describe that window either.", 100.0 * worst)
+    per_event = np.empty(n, dtype=float)
+    for b, sel in enumerate(splits):
+        per_event[sel] = factors[b]
+    logger.info("Gain correction APPLIED: %d blocks of ~%d events; Q50 drift %.2f%% rms "
+                "(constancy rejected at p = %.2g) removed; corrections span "
+                "[%.3f, %.3f]; residual gain systematic ~%.2f%% (block stat err / "
+                "sqrt(blocks)) -- quote it beside the MPV's statistical error.",
+                n_blocks, config.gain_block_events, 100.0 * drift_rms, p50,
+                float(factors.min()), float(factors.max()), 100.0 * resid_syst)
+    info = {"n_blocks": n_blocks, "block_t_mid_h": t_mid.tolist(),
+            "block_q50": q50.tolist(), "block_q50_err": e50.tolist(),
+            "reference_q50": ref, "factors": factors.tolist(),
+            "drift_rms": drift_rms, "resid_syst": resid_syst,
+            "p_const": p50, "p_ratio75": p75, "p_ratio25": p25}
+    return obs * per_event, info
+
+
+# Gain correction internals (see gain_correction; deliberately not Config knobs -- they
+# are measurement hygiene, not analysis choices).
 def _unclipped_for_fit(observable, prep: Prepared, config: Config, sat: dict | None = None,
                        pileup_mask: np.ndarray | None = None):
     """Hard-clipped (rail-saturated) events pile up at a fixed peak height, which in the
@@ -3203,7 +3530,19 @@ def analyze_observable(observable, prep: Prepared, label: str, color: str, confi
     spectrum was fit on (used by plot_estimator_comparison so its histogram matches the
     fitted line and the width it reports)."""
     observable = np.asarray(observable, dtype=float)
+    # Opt-in gain-drift correction FIRST: everything below -- the fit, the cut, the
+    # summary quantiles, the plots built from this method dict -- sees ONE observable,
+    # so correcting it here (rather than in each driver) keeps them all consistent.
+    # The drivers' QC scatters (chi2 / timing / amplitude-area) intentionally keep the
+    # RAW amplitudes: the per-event chi2 was minimised against them.
+    gc_info = None
+    if config.gain_correct:
+        gc = gain_correction(observable, prep, config)
+        if gc is not None:
+            observable, gc_info = gc
     m: dict[str, Any] = {"label": label, "color": color, "observable": observable}
+    if gc_info is not None:
+        m["gain_correction"] = gc_info
     obs_fit, n_clip, n_pileup = _unclipped_for_fit(observable, prep, config, sat, pileup_mask)
     m["observable_fit"] = obs_fit
     m["n_clip_excluded"] = n_clip
@@ -3220,6 +3559,11 @@ def analyze_observable(observable, prep: Prepared, label: str, color: str, confi
         m["fit"]["n_clip_excluded"] = n_clip
         m["fit"]["n_pileup_excluded"] = n_pileup
         _apply_reliability_guard(m["fit"], prep, config, label)
+        # Error bar on the MPV (resampling the events; the replicates reuse the fit's
+        # BIC-selected tail model).  Muon mode used to return before bootstrap_cut ever
+        # ran, so its headline number -- the MPV -- was the one number with no error bar.
+        if m["fit"].get("ok"):
+            m["fit"].update(bootstrap_mpv(obs_fit, config, m["fit"]))
         m["summary"] = muon_summary(obs_fit, m["fit"],
                                     peak_scale=peak_scale, charge_scale=charge_scale)
         return m
@@ -3324,8 +3668,21 @@ def print_muon_summary(prep: Prepared, methods: list[dict], box_width: int | Non
         s, f = m["summary"], m["fit"]
         tp = f.get("tail_params")
         shape = "Landau(x)Gauss + response tail" if tp else "Landau(x)Gauss"
-        print(f"  {m['label']:<18} MPV   = {s['mpv_obs']:.4g} obs"
+        # The MPV is quoted WITH its bootstrap error bar (bootstrap_mpv) -- the sampling
+        # std is ~1.2% at run00270 statistics, so a bare number invites reading a
+        # percent-level change between runs as physics when it is noise.
+        std = f.get("mpv_std", np.nan)
+        err = f" +/- {std:.2g}" if np.isfinite(std) else ""
+        print(f"  {m['label']:<18} MPV   = {s['mpv_obs']:.4g}{err} obs"
               f"   ({shape} chi2_red={f['fit_chi2']:.2f})")
+        if np.isfinite(std) and s["mpv_obs"] > 0:
+            print(f"  {'':<18} (stat = {100 * std / s['mpv_obs']:.1f}% of the MPV; "
+                  f"bootstrap over {f.get('mpv_n_resamples', 0)} event resamples)")
+        gc = m.get("gain_correction")
+        if gc:
+            print(f"  {'':<18} gain-drift corrected: {gc['n_blocks']} blocks, "
+                  f"{100 * gc['drift_rms']:.1f}% rms removed; residual gain syst ~"
+                  f"{100 * gc['resid_syst']:.2f}% (quote beside the stat error)")
         if tp:
             print(f"  {'':<18} + BIC-selected response tail: light-yield scale t ~ "
                   f"t^-{tp[4]:.2f} on [1, {tp[5]:.2f}]")
@@ -3366,9 +3723,19 @@ def print_summary(prep: Prepared, methods: list[dict], box_width: int | None = N
         width = f["sigma"] / mpv if mpv > 0 else np.nan
         tp = f.get("tail_params")
         shape = "Landau(x)Gauss + response tail" if tp else "Landau(x)Gauss"
-        print(f"  {m['label']:<18} MPV={mpv:.4g} obs   ({shape} chi2_red={f['fit_chi2']:.2f})\n"
+        # MPV quoted WITH its bootstrap error when the cut bootstrap ran (bootstrap_cut
+        # resamples the MPV alongside the cut); channels with no cut have no replicates,
+        # so their MPV stays bare here -- the muon-mode run is the number of record there.
+        mstd = f.get("mpv_std", np.nan)
+        merr = f" +/- {mstd:.2g}" if np.isfinite(mstd) else ""
+        print(f"  {m['label']:<18} MPV={mpv:.4g}{merr} obs   ({shape} chi2_red={f['fit_chi2']:.2f})\n"
               f"  {'':<18} line-width sigma/MPV = {100*width:.1f}% "
               f"({'core, at scale t=1' if tp else 'Landau(x)Gauss'}; upper bound)")
+        gc = m.get("gain_correction")
+        if gc:
+            print(f"  {'':<18} gain-drift corrected: {gc['n_blocks']} blocks, "
+                  f"{100 * gc['drift_rms']:.1f}% rms removed; residual gain syst ~"
+                  f"{100 * gc['resid_syst']:.2f}% (quote beside the stat error)")
         if tp:
             print(f"  {'':<18} + BIC-selected response tail: light-yield scale t ~ "
                   f"t^-{tp[4]:.2f} on [1, {tp[5]:.2f}]  (see _langau_tailmix)")
@@ -3551,6 +3918,16 @@ def plot_template(prep: Prepared, config: Config) -> None:
     ax.fill_between(prep.relative, prep.template - sem, prep.template + sem, alpha=0.35,
                     label=rf"$\pm 1$ standard error (N={prep.n_template:,})")
     ax.axvline(0, ls="--", color="gray", label="Peak")
+    # A template that ends far off baseline is CUT, not decayed -- the pre-pulse
+    # noise budget shrank template_post below the pulse's own tail (see the
+    # auto-window warning).  Say so on the figure: without the note, the cut tail
+    # reads as a mis-measured pulse shape.
+    peak_h = float(np.abs(prep.template).max())
+    end_h = float(abs(prep.template[-1]))
+    if peak_h > 0 and end_h > 0.2 * peak_h:
+        ax.plot([], [], " ", label=(f"tail cut at +{int(prep.relative[-1])} samp "
+                                    f"({100 * end_h / peak_h:.0f}% of peak): "
+                                    "pre-pulse noise budget (see log)"))
     ax.set(xlabel="Samples relative to peak", ylabel="Corrected ADC", title="Pulse template")
     ax.legend(); ax.grid(True)
     _finish(fig, "1_template", config)
@@ -3813,8 +4190,17 @@ def plot_of_chi2(amplitude: np.ndarray, chi2_red: np.ndarray, config: Config,
             x_lo, x_hi = ax1.get_xlim()
             xs = (np.geomspace(x_lo, x_hi, 200) if log_x
                   else np.linspace(0, x_hi, 200))
-            lab = (rf"clean trend: {c0:.2f} + $(A/{a0:.2f})^2$" if np.isfinite(a0) else
-                   f"clean level = {c0:.2f} (no trend)")
+            # A flat line with a rising band above it needs its reason on the figure:
+            # chi2_amplitude_trend refuses the (c0, A0) fit below 200 events, so on a
+            # small file the flat level is a STARVED fallback, not a claim that the
+            # band is flat (the rise is the expected c0 + (A/A0)^2 law regardless).
+            if np.isfinite(a0):
+                lab = rf"clean trend: {c0:.2f} + $(A/{a0:.2f})^2$"
+            elif a.size < 200:
+                lab = (f"clean level = {c0:.2f} (median; too few events "
+                       "to fit the rising trend)")
+            else:
+                lab = f"clean level = {c0:.2f} (no trend)"
             ax1.plot(xs, expected_chi2(xs, c0, a0), "-", color="C3", lw=2, label=lab)
             ax1.plot(xs, config.pileup_chi2_factor * expected_chi2(xs, c0, a0), "--",
                      color="C3", lw=1.2, alpha=0.7,
@@ -3954,8 +4340,12 @@ def plot_timing(peak_subsample: np.ndarray, amplitude: np.ndarray, length: int,
             if np.isfinite(slope):
                 intercept = float(np.mean(bm) - slope * np.mean(bc))
                 xs = np.array([a.min(), a.max()])
+                # mathtext exponent: "1.2 x 10^-3" reads as a number, "1.20e-03" reads
+                # as a repr.  The split is on the %e output so the rounding stays there.
+                mant, exp = f"{slope:.2e}".split("e")
                 ax1.plot(xs, slope * xs + intercept, ls="--", color="red", lw=1.2,
-                         label=f"robust time-walk slope = {slope:.2e} samp/amp")
+                         label=rf"robust time-walk slope = ${mant} \times 10^{{{int(exp)}}}$"
+                               " samp/amp")
     ax1.axhline(0, color="gray", lw=0.8)
     ax1.set(xlabel="Reconstructed amplitude", ylabel="Peak time - center (samples)",
             title="Time-walk check (flat = unbiased)")
@@ -4556,7 +4946,12 @@ def plot_baseline_droop(prep: Prepared, config: Config, name="18_baseline_droop"
     # symmetric pickup lobes) that the full range crushes into a single bar.
     ax0.hist(slopes, bins=np.linspace(lo, hi, 100), color="C0", alpha=0.8)
     ax0.axvline(0, ls="--", color="gray")
-    ax0.axvline(med, ls=":", color="C3", label=f"median = {med:.2e} ADC/sample")
+    # mathtext exponent (same treatment as the time-walk slope): "1.2 x 10^-3" reads
+    # as a number, "1.20e-03" reads as a repr.  Split on the %e output so the
+    # rounding stays there.
+    med_mant, med_exp = f"{med:.2e}".split("e")
+    ax0.axvline(med, ls=":", color="C3",
+                label=rf"median = ${med_mant} \times 10^{{{int(med_exp)}}}$ ADC/sample")
     ax0.set(xlabel="Pre-pulse slope (ADC/sample)", ylabel="Events",
             title=f"Baseline tilt: core (central 99%; {n_out:,} outliers off-panel)")
     ax0.legend(); ax0.grid(True, alpha=0.3)

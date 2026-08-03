@@ -334,6 +334,73 @@ def test_determinism():
         f"fit not deterministic: cut {fit1['cut']} vs {fit2['cut']}"
 
 
+def test_model_rows_spans_the_run():
+    """_model_rows must be a NO-OP under the cap (bit-identical results for every
+    existing dataset) and a sorted, run-spanning subsample above it."""
+    rows = np.arange(100_000)
+    r = P._model_rows(rows, 20_000)
+    assert 20_000 - 31 <= r.size <= 20_000, f"selected {r.size} rows"
+    assert np.all(np.diff(r) > 0), "rows not strictly increasing (h5py needs that)"
+    assert r.min() < 5_000 and r.max() > 95_000, \
+        "model rows do not span the run (that was the whole point)"
+    small = np.arange(N_EVENTS)
+    assert P._model_rows(small, 20_000) is small, "under the cap must be identity"
+    holed = np.concatenate([np.arange(0, 40_000), np.arange(60_000, 120_000)])
+    r2 = P._model_rows(holed, 20_000)
+    assert np.all(np.isin(r2, holed)), "selected a row the GTI gate excluded"
+
+
+def test_gain_correction_recovers_injected_drift():
+    """A pure multiplicative gain drift painted onto the observable must be detected
+    and removed; the corrected block medians must come back flat."""
+    c = _ctx()
+    cfg = replace(c["config"], gain_block_events=400)
+    t_frac = c["oi"] / N_EVENTS                       # uniform time axis: row -> run frac
+    drift = 1.0 + 0.05 * np.sin(2.0 * np.pi * t_frac)  # 3.5% rms, HVAC-like
+    out = P.gain_correction(c["amp"] * drift, c["prep"], cfg)
+    assert out is not None, "a 3.5% rms injected drift was not corrected"
+    corr, info = out
+    assert 0.02 < info["drift_rms"] < 0.09, f"measured drift_rms {info['drift_rms']:.3f}"
+    blocks = np.array_split(np.arange(corr.size), info["n_blocks"])
+    med = np.array([np.median(corr[b]) for b in blocks])
+    resid = float(np.std(med, ddof=1) / np.mean(med))
+    assert resid < 0.02, f"corrected block medians still drift {100*resid:.1f}% rms"
+
+
+def test_gain_correction_refuses_flat_and_shape_change():
+    """The two refusals: a statistically-flat gain must NOT be 'corrected' (that only
+    injects the block noise), and a SHAPE change (Q75/Q50 moving) must not be papered
+    over by a gain factor -- even when a genuine Q50 drift is present alongside it."""
+    c = _ctx()
+    cfg = replace(c["config"], gain_block_events=400)
+    assert P.gain_correction(c["amp"], c["prep"], cfg) is None, \
+        "corrected a drift that is consistent with constant"
+    t_frac = c["oi"] / N_EVENTS
+    drift = 1.0 + 0.05 * np.sin(2.0 * np.pi * t_frac)
+    shaped = c["amp"] * drift
+    top = shaped > np.median(shaped)                  # inflate the top half late in the run
+    shaped[top & (t_frac > 0.67)] *= 1.35             # Q75 moves, Q50 barely does
+    assert P.gain_correction(shaped, c["prep"], cfg) is None, \
+        "a shape change was papered over as a gain drift"
+    # ... while the SAME drift without the shape injection corrects fine (see the test
+    # above), so the refusal really is the Q75/Q50 gate and not the constancy gate.
+
+
+def test_bootstrap_mpv_reports_a_sane_error():
+    """Muon mode's MPV must come with a bootstrap error of a sane size, and the knob
+    that disables the cut bootstrap must disable this one too."""
+    c = _ctx()
+    cfg = replace(c["config"], mode="muon")
+    fit = P.fit_muon_spectrum(c["amp"], cfg)
+    assert fit["ok"], "muon-line fit failed on the synthetic spectrum"
+    bs = P.bootstrap_mpv(c["amp"], cfg, fit, n_resamples=8)
+    assert "mpv_std" in bs, "no MPV error bar came back"
+    assert 0.0 < bs["mpv_std"] < 0.1 * fit["mpv"], \
+        f"mpv_std {bs['mpv_std']:.4g} vs mpv {fit['mpv']:.4g} -- not a sane error"
+    assert P.bootstrap_mpv(c["amp"], replace(cfg, cut_bootstrap=0), fit) == {}, \
+        "cut_bootstrap=0 must disable the MPV bootstrap"
+
+
 # ---------------------------------------------------------------------------------
 
 TESTS = [
@@ -351,6 +418,10 @@ TESTS = [
     test_boxcar_agrees_with_of,
     test_gti_gate_drops_the_right_rows,
     test_determinism,
+    test_model_rows_spans_the_run,
+    test_gain_correction_recovers_injected_drift,
+    test_gain_correction_refuses_flat_and_shape_change,
+    test_bootstrap_mpv_reports_a_sane_error,
 ]
 
 

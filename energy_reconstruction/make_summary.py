@@ -26,7 +26,10 @@ RE_TRIG = re.compile(r"Triggered\s+(\d+)\s*/\s*(\d+)\s+analyzed")
 # prints "MPV   = 0.6373 obs".  The old exact-"MPV=" form silently skipped every
 # muon-mode job, so the two clean-export runs -- the very MPVs the README's quoting
 # rules point at -- were missing from final_run_summary.json (mpv: {}).
-RE_MPV = re.compile(r"^ {2}(\S.*?)\s{2,}MPV\s*=\s*([\d.eE+-]+)\s+obs")
+# The "+/- err" group is OPTIONAL: logs written since the MPV bootstrap (2026-08-03)
+# carry it, older logs do not, and this file must parse both.
+RE_MPV = re.compile(r"^ {2}(\S.*?)\s{2,}MPV\s*=\s*([\d.eE+-]+)"
+                    r"(?:\s+\+/-\s+([\d.eE+-]+))?\s+obs")
 RE_CUT = re.compile(r"^ {2}(\S.*?)\s{2,}cut=([\d.eE+-]+)\s+\+/-\s+([\d.eE+-]+).*?:"
                     r"\s+([\d,]+)\s+muon-like,\s+([\d,]+)\s+gamma-like")
 RE_NOCUT = re.compile(r"^ {2}(\S.*?)\s{2,}NO CUT DERIVED")
@@ -59,11 +62,13 @@ def parse_log(name: str, text: str) -> dict:
             out["closure"] = closure
         return out
 
-    mpv, cut, no_cut, classified = {}, {}, [], []
+    mpv, mpv_std, cut, no_cut, classified = {}, {}, {}, [], []
     last_cut = None            # the method whose continuation lines we are inside
     for ln in text.splitlines():
         if (m := RE_MPV.match(ln)):
             mpv[m[1].strip()] = float(m[2])
+            if m[3] is not None:           # bootstrap error, printed since 2026-08-03
+                mpv_std[m[1].strip()] = float(m[3])
         elif (m := RE_CUT.match(ln)):
             last_cut = m[1].strip()
             cut[last_cut] = {"value": float(m[2]), "std": float(m[3])}
@@ -77,6 +82,8 @@ def parse_log(name: str, text: str) -> dict:
             if m[1] not in flags:
                 flags.append(m[1])
     out["mpv"], out["cut"], out["no_cut"], out["classified"] = mpv, cut, no_cut, classified
+    if mpv_std:                # keyed like "mpv"; absent entirely from pre-bootstrap logs
+        out["mpv_std"] = mpv_std
     out["n_rail_clipped_excluded"] = [int(x) for x in RE_RAIL.findall(text)]
     if (m := RE_RES.search(text)):
         out["resolution_pred"], out["resolution_meas"] = float(m[1]), float(m[2])
