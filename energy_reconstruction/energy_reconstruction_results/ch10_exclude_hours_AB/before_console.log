@@ -21,13 +21,13 @@ Noise sigma (ADC): 4.448
 Boxcar window:     10 samples
 
 Muon (MIP) line
-  Optimal filter     MPV=0.7486 obs   (Landau(x)Gauss + response tail chi2_red=0.88)
+  Optimal filter     MPV=0.7486 +/- 0.0099 obs   (Landau(x)Gauss + response tail chi2_red=0.88)
                      line-width sigma/MPV = 29.5% (core, at scale t=1; upper bound)
                      + BIC-selected response tail: light-yield scale t ~ t^-2.00 on [1, 3.11]  (see _langau_tailmix)
                      MIP / raw baseline noise  = 37.1 sigma  (one sample)
                      MIP / filter resolution   = 65.9 sigma  (this observable)
                      MIP / trigger floor       = 16.5x  (floor = 0.04543 obs)
-  Boxcar (W=10)      MPV=0.7478 obs   (Landau(x)Gauss + response tail chi2_red=1.28)
+  Boxcar (W=10)      MPV=0.7478 +/- 0.01 obs   (Landau(x)Gauss + response tail chi2_red=1.28)
                      line-width sigma/MPV = 29.5% (core, at scale t=1; upper bound)
                      + BIC-selected response tail: light-yield scale t ~ t^-1.92 on [1, 3.01]  (see _langau_tailmix)
                      MIP / raw baseline noise  = 37.0 sigma  (one sample)
