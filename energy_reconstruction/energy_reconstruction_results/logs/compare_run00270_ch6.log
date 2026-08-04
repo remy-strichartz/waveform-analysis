@@ -1,0 +1,60 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 349 vs down 68.2 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=452 search_pad=54 template_pre=48 template_post=216 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 10.3782 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3504.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 117 events (0.8%).
+INFO common.waveform_ops: Pileup: 5 (0.0%).  Noise: 3612 (24.1%).
+INFO common.waveform_ops: Saturation: 110 events (1.0%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3727/14994 prefix events (3612 NOISE, 5 PILEUP, 110 rail-clipped); the template uses the remaining 11267 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0981, 0.2081, 0.1152, 0.0212 cycles/sample.
+INFO mv_pipeline: Template built from 8725 bright pulses.
+INFO mv_pipeline: Noise model: dropped 114/14994 prefix events (0.76%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14880.
+INFO mv_pipeline: Triggered 12301 / 14994 analyzed windows (82.0%).
+INFO common.waveform_ops: Saturation: 116 events (0.9%).
+INFO mv_pipeline: No separable low-amplitude population below the MIP line (the valley walk reached the spectrum edge): fitting the MIP line alone and reporting NO gamma/muon cut.
+INFO boxcar: Boxcar optimal width = 41 samples (colored-noise SNR).
+WARNING mv_pipeline: The fitted gamma population is only 0.39% of events (47 of 11896): the cut at 0.003827 is separating the MIP line from almost NOTHING. Treat it as a threshold landmark, not a gamma/muon discrimination boundary -- and check whether this data even has a gamma population to cut on.
+INFO mv_pipeline: Noise model: dropped 112/12301 prefix events (0.91%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 12189.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,301 / 14,994
+Noise sigma (ADC): 10.38
+Boxcar window:     41 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.5687 obs   (Landau(x)Gauss chi2_red=4.85)
+                     line-width sigma/MPV = 46.4% (Landau(x)Gauss; upper bound)
+                     MIP / raw baseline noise  = 10.4 sigma  (one sample)
+                     MIP / filter resolution   = 27.6 sigma  (this observable)
+                     MIP / trigger floor       = 6.9x  (floor = 0.08231 obs)
+                     (fit excludes 116 rail-clipped events)
+  Boxcar (W=41)      MPV=0.5154 +/- 0.0095 obs   (Landau(x)Gauss + response tail chi2_red=13.09)
+                     line-width sigma/MPV = 27.0% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.18 on [1, 2.81]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 9.4 sigma  (one sample)
+                     MIP / filter resolution   = 25.0 sigma  (this observable)
+                     MIP / trigger floor       = 6.3x  (floor = 0.08231 obs)
+                     (fit excludes 116 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     NO CUT DERIVED (the spectrum holds no separable gamma population); 12,301 events left unclassified
+  Boxcar (W=41)      cut=0.003827 +/- 0.0038 (99%) (valley): 12,199 muon-like, 102 gamma-like (99.2% muon-like)
+                     fitted gamma population = 0.39% of events   [THIN: the cut separates the MIP line from almost nothing]
+                     gamma fit chi2_red = 1.1
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.02127, measured 0.0206 (meas/pred = 0.97)
+  OF goodness-of-fit:      median chi2_red = 0.80, 90th pct = 1.60
+  OF chi2 vs amplitude:    chi2_red(A) = 0.73 + (A/2.98)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 2.98 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -7.68e-01 samples/amp
+  Amplitude-area band:     179 / 12,301 off-band (1.46%)
+  Saturation/linearity:    146 above ~70% of the 3501 ADC full scale (1.19%); 116 clipped at rail 3501
+------------------------------------------------------------------

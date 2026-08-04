@@ -1,0 +1,59 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is negative (up 12 vs down 507 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=440 search_pad=39 template_pre=20 template_post=55 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 1.4826 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 2383.5 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 4 events (0.0%).
+INFO common.waveform_ops: Pileup: 1239 (8.3%).  Noise: 119 (0.8%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 1358/14994 prefix events (119 NOISE, 1239 PILEUP, 0 rail-clipped); the template uses the remaining 13636 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.0599 cycles/sample.
+INFO mv_pipeline: Template built from 13636 bright pulses.
+INFO mv_pipeline: Noise model: dropped 26/14994 prefix events (0.17%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14968.
+INFO mv_pipeline: Triggered 14877 / 14994 analyzed windows (99.2%).
+WARNING mv_pipeline: The fitted gamma population is only 0.17% of events (25 of 14848): the cut at 0.0943 is separating the MIP line from almost NOTHING. Treat it as a threshold landmark, not a gamma/muon discrimination boundary -- and check whether this data even has a gamma population to cut on.
+INFO boxcar: Boxcar optimal width = 10 samples (colored-noise SNR).
+WARNING mv_pipeline: The fitted gamma population is only 0.12% of events (18 of 14848): the cut at 0.06737 is separating the MIP line from almost NOTHING. Treat it as a threshold landmark, not a gamma/muon discrimination boundary -- and check whether this data even has a gamma population to cut on.
+INFO mv_pipeline: Noise model: dropped 18/14877 prefix events (0.12%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14859.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  14,877 / 14,994
+Noise sigma (ADC): 1.483
+Boxcar window:     10 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.5426 +/- 0.013 obs   (Landau(x)Gauss + response tail chi2_red=2.07)
+                     line-width sigma/MPV = 16.4% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.13 on [1, 3.52]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 89.2 sigma  (one sample)
+                     MIP / filter resolution   = 41.9 sigma  (this observable)
+                     MIP / trigger floor       = 10.5x  (floor = 0.05176 obs)
+  Boxcar (W=10)      MPV=0.5905 +/- 0.013 obs   (Landau(x)Gauss + response tail chi2_red=1.53)
+                     line-width sigma/MPV = 21.9% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.58 on [1, 3.63]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 97.0 sigma  (one sample)
+                     MIP / filter resolution   = 45.6 sigma  (this observable)
+                     MIP / trigger floor       = 11.4x  (floor = 0.05176 obs)
+
+Gamma/muon separation
+  Optimal filter     cut=0.0943 +/- 0.0041 (4%) (equal-area): 14,851 muon-like, 26 gamma-like (99.8% muon-like)
+                     fitted gamma population = 0.17% of events   [THIN: the cut separates the MIP line from almost nothing]
+                     gamma fit chi2_red = 4.6
+  Boxcar (W=10)      cut=0.06737 +/- 0.0075 (11%) (equal-area): 14,858 muon-like, 19 gamma-like (99.9% muon-like)
+                     fitted gamma population = 0.12% of events   [THIN: the cut separates the MIP line from almost nothing]
+                     gamma fit chi2_red = 14.1
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.005506, measured 0.005131 (meas/pred = 0.93)
+  OF goodness-of-fit:      median chi2_red = 10.65, 90th pct = 30.32
+  OF chi2 vs amplitude:    chi2_red(A) = 5.89 + (A/0.43)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 0.43 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = 6.92e-01 samples/amp
+  Amplitude-area band:     56 / 14,877 off-band (0.38%)
+  Saturation/linearity:    12 above ~70% of the 2386 ADC full scale (0.08%); no hard clipping
+------------------------------------------------------------------

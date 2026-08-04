@@ -1,0 +1,59 @@
+Canonical run of the energy_reconstruction pipeline
+date: 2026-08-03T19:48:23.213341-04:00
+python 3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:21:58) [MSC v.1929 64 bit (AMD64)]
+numpy 2.4.1
+scipy 1.16.3
+h5py 3.16.0
+pandas 3.0.3
+matplotlib 3.10.8
+git: 2f6f407
+seed: Config.seed = 20240601 (default; all pipeline randomness is seeded)
+
+command: python compare.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
+  -> exit 0, 109s, log compare_run00270_ch0.log
+command: python compare.py --input run00270_ch1.h5 --save-plots --no-show --overwrite
+  -> exit 0, 276s, log compare_run00270_ch1.log
+command: python compare.py --input run00270_ch2.h5 --save-plots --no-show --overwrite
+  -> exit 0, 55s, log compare_run00270_ch2.log
+command: python compare.py --input run00270_ch3.h5 --save-plots --no-show --overwrite
+  -> exit 0, 51s, log compare_run00270_ch3.log
+command: python compare.py --input run00270_ch4.h5 --save-plots --no-show --overwrite
+  -> exit 0, 46s, log compare_run00270_ch4.log
+command: python compare.py --input run00270_ch5.h5 --save-plots --no-show --overwrite
+  -> exit 0, 51s, log compare_run00270_ch5.log
+command: python compare.py --input run00270_ch6.h5 --save-plots --no-show --overwrite
+  -> exit 0, 111s, log compare_run00270_ch6.log
+command: python compare.py --input run00270_ch7.h5 --save-plots --no-show --overwrite
+  -> exit 0, 54s, log compare_run00270_ch7.log
+command: python compare.py --input run00270_ch9.h5 --save-plots --no-show --overwrite
+  -> exit 0, 383s, log compare_run00270_ch9.log
+command: python compare.py --input run00270_ch10.h5 --save-plots --no-show --overwrite
+  -> exit 0, 275s, log compare_run00270_ch10.log
+command: python compare.py --mode muon --input caen_ch0.h5 --save-plots --no-show --overwrite
+  -> exit 0, 130s, log compare_caen_ch0.log
+command: python compare.py --mode muon --input "C:\Users\remys\Desktop\Beautiful\preprocessing\preprocessing_results\triage\run00270_ch9_triage_results\run00270_ch9_clean.h5" --save-plots --no-show --overwrite
+  -> exit 0, 489s, log compare_run00270_ch9_clean.log
+command: python compare.py --mode muon --input "C:\Users\remys\Desktop\Beautiful\preprocessing\preprocessing_results\triage\run00270_ch10_triage_results\run00270_ch10_clean.h5" --save-plots --no-show --overwrite
+  -> exit 0, 628s, log compare_run00270_ch10_clean.log
+command: python timewalk_report.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
+  -> exit 0, 54s, log timewalk_run00270_ch0.log
+command: python timewalk_report.py --input run00270_ch1.h5 --save-plots --no-show --overwrite
+  -> exit 0, 59s, log timewalk_run00270_ch1.log
+command: python timewalk_report.py --input run00270_ch2.h5 --save-plots --no-show --overwrite
+  -> exit 0, 58s, log timewalk_run00270_ch2.log
+command: python timewalk_report.py --input run00270_ch3.h5 --save-plots --no-show --overwrite
+  -> exit 0, 58s, log timewalk_run00270_ch3.log
+command: python timewalk_report.py --input run00270_ch4.h5 --save-plots --no-show --overwrite
+  -> exit 0, 67s, log timewalk_run00270_ch4.log
+command: python timewalk_report.py --input run00270_ch5.h5 --save-plots --no-show --overwrite
+  -> exit 0, 57s, log timewalk_run00270_ch5.log
+command: python timewalk_report.py --input run00270_ch6.h5 --save-plots --no-show --overwrite
+  -> exit 0, 59s, log timewalk_run00270_ch6.log
+command: python timewalk_report.py --input run00270_ch7.h5 --save-plots --no-show --overwrite
+  -> exit 0, 64s, log timewalk_run00270_ch7.log
+command: python timewalk_report.py --input run00270_ch9.h5 --save-plots --no-show --overwrite
+  -> exit 0, 36s, log timewalk_run00270_ch9.log
+command: python timewalk_report.py --input run00270_ch10.h5 --save-plots --no-show --overwrite
+  -> exit 0, 33s, log timewalk_run00270_ch10.log
+command: python timewalk_report.py --input "C:\Users\remys\Desktop\Beautiful\preprocessing\preprocessing_results\triage\run00270_ch7_triage_results\run00270_ch7_clean.h5" --save-plots --no-show --overwrite
+  -> exit 0, 36s, log timewalk_run00270_ch7_clean.log

@@ -1,0 +1,58 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14779, 1024) (first 14,779 rows).
+INFO mv_pipeline: Loaded 14779 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is negative (up 12 vs down 509 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=440 search_pad=39 template_pre=20 template_post=55 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 1.4826 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 2383.5 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 4 events (0.0%).
+INFO common.waveform_ops: Pileup: 1061 (7.2%).  Noise: 91 (0.6%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 1152/14779 prefix events (91 NOISE, 1061 PILEUP, 0 rail-clipped); the template uses the remaining 13627 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.0599 cycles/sample.
+INFO mv_pipeline: Template built from 13627 bright pulses.
+INFO mv_pipeline: Noise model: dropped 18/14779 prefix events (0.12%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14761.
+INFO mv_pipeline: Triggered 14692 / 14779 analyzed windows (99.4%).
+INFO mv_pipeline: Muon spectrum carries a low-amplitude population below the MIP line: fitting the Landau only above the valley at 0.1498.
+INFO boxcar: Boxcar optimal width = 10 samples (colored-noise SNR).
+INFO mv_pipeline: Noise model: dropped 13/14692 prefix events (0.09%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14679.
+
+==================================================================
+Waveform analysis  (muon mode: hodoscope-selected MIP pulses)
+==================================================================
+Triggered events:  14,692 / 14,779
+Noise sigma (ADC): 1.483
+Boxcar window:     10 samples
+
+Muon (MIP) line  [all values in ADC-derived observable units]
+  Optimal filter     MPV   = 0.6373 +/- 0.0088 obs   (Landau(x)Gauss + response tail chi2_red=0.99)
+                     (stat = 1.4% of the MPV; bootstrap over 20 event resamples)
+                     + BIC-selected response tail: light-yield scale t ~ t^-2.00 on [1, 3.84]
+                       (a per-channel light-collection tail, NOT a second population and NOT muon path length -- see _langau_tailmix)
+                     (fit starts above the valley at 0.2341: 76 low-amplitude noise events excluded)
+                     MPV (absolute, gain-tracking) = 155.2 ADC peak  |  1631 ADC.samp charge
+                     median= 0.8431 obs   |  mean = 0.9838 obs
+                     spread (16-84, half) = 0.4879 obs (76.6% of MPV)
+                     Landau eta/MPV = 3.5%  (energy-loss straggling)
+                     Gauss sigma/MPV = 30.0%  (detector resolution at MIP)
+  Boxcar (W=10)      MPV   = 0.6498 +/- 0.0086 obs   (Landau(x)Gauss + response tail chi2_red=0.93)
+                     (stat = 1.3% of the MPV; bootstrap over 20 event resamples)
+                     + BIC-selected response tail: light-yield scale t ~ t^-2.07 on [1, 3.77]
+                       (a per-channel light-collection tail, NOT a second population and NOT muon path length -- see _langau_tailmix)
+                     (fit starts above the valley at 0.2126: 88 low-amplitude noise events excluded)
+                     MPV (absolute, gain-tracking) = 158.3 ADC peak  |  1663 ADC.samp charge
+                     median= 0.8402 obs   |  mean = 0.9844 obs
+                     spread (16-84, half) = 0.4832 obs (74.4% of MPV)
+                     Landau eta/MPV = 3.3%  (energy-loss straggling)
+                     Gauss sigma/MPV = 31.1%  (detector resolution at MIP)
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.005508, measured 0.005126 (meas/pred = 0.93)
+  OF goodness-of-fit:      median chi2_red = 10.65, 90th pct = 30.32
+  OF chi2 vs amplitude:    chi2_red(A) = 5.91 + (A/0.43)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 0.43 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = 6.78e-01 samples/amp
+  Amplitude-area band:     54 / 14,692 off-band (0.37%)
+  Saturation/linearity:    12 above ~70% of the 2386 ADC full scale (0.08%); no hard clipping
+------------------------------------------------------------------

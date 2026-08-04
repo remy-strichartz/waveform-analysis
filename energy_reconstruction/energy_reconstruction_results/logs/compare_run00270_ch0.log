@@ -1,0 +1,60 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 2.76e+03 vs down 76 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=449 search_pad=47 template_pre=48 template_post=202 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 13.3434 ADC.
+INFO common.waveform_ops: Auto saturation rail = 3579 ADC (pile-up of 88 events).
+INFO common.waveform_ops: Saturation: 340 events (2.3%).
+INFO common.waveform_ops: Pileup: 7 (0.0%).  Noise: 2792 (18.6%).
+INFO common.waveform_ops: Saturation: 349 events (2.9%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3142/14994 prefix events (2786 NOISE, 7 PILEUP, 349 rail-clipped); the template uses the remaining 11852 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1024, 0.0258, 0.2079, 0.1741 cycles/sample.
+INFO mv_pipeline: Template built from 11769 bright pulses.
+INFO mv_pipeline: Noise model: dropped 107/14994 prefix events (0.71%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14887.
+INFO mv_pipeline: Triggered 12662 / 14994 analyzed windows (84.4%).
+INFO common.waveform_ops: Saturation: 349 events (2.8%).
+INFO boxcar: Boxcar optimal width = 39 samples (colored-noise SNR).
+INFO mv_pipeline: Noise model: dropped 106/12662 prefix events (0.84%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 12556.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,662 / 14,994
+Noise sigma (ADC): 13.34
+Boxcar window:     39 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.88 +/- 0.0037 obs   (Landau(x)Gauss + response tail chi2_red=2.57)
+                     line-width sigma/MPV = 14.9% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-4.29 on [1, 1.02]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 97.7 sigma  (one sample)
+                     MIP / filter resolution   = 265.0 sigma  (this observable)
+                     MIP / trigger floor       = 66.3x  (floor = 0.01328 obs)
+                     (fit excludes 349 rail-clipped events)
+  Boxcar (W=39)      MPV=0.872 +/- 0.0041 obs   (Landau(x)Gauss chi2_red=2.78)
+                     line-width sigma/MPV = 14.8% (Landau(x)Gauss; upper bound)
+                     MIP / raw baseline noise  = 96.8 sigma  (one sample)
+                     MIP / filter resolution   = 262.6 sigma  (this observable)
+                     MIP / trigger floor       = 65.6x  (floor = 0.01328 obs)
+                     (fit excludes 349 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     cut=0.4349 +/- 0.015 (3%) (equal-area): 11,788 muon-like, 874 gamma-like (93.1% muon-like)
+                     fitted gamma population = 7.62% of events
+                     gamma fit chi2_red = 1.6
+  Boxcar (W=39)      cut=0.4417 +/- 0.069 (16%) (equal-area): 11,788 muon-like, 874 gamma-like (93.1% muon-like)
+                     fitted gamma population = 7.00% of events
+                     gamma fit chi2_red = 3.8
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.003388, measured 0.003359 (meas/pred = 0.99)
+  OF goodness-of-fit:      median chi2_red = 1.38, 90th pct = 2.85
+  OF chi2 vs amplitude:    chi2_red(A) = 0.99 + (A/1.63)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 1.63 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -1.18e+00 samples/amp
+  Amplitude-area band:     620 / 12,662 off-band (4.90%)
+  Saturation/linearity:    1,032 above ~70% of the 3578 ADC full scale (8.15%); 349 clipped at rail 3578
+------------------------------------------------------------------

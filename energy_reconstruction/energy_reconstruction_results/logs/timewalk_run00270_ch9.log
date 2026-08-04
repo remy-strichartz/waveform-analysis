@@ -1,0 +1,59 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is negative (up 12 vs down 507 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=440 search_pad=39 template_pre=20 template_post=55 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 1.4826 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 2383.5 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 4 events (0.0%).
+INFO common.waveform_ops: Pileup: 1239 (8.3%).  Noise: 119 (0.8%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 1358/14994 prefix events (119 NOISE, 1239 PILEUP, 0 rail-clipped); the template uses the remaining 13636 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.0599 cycles/sample.
+INFO mv_pipeline: Template built from 13636 bright pulses.
+INFO mv_pipeline: Noise model: dropped 26/14994 prefix events (0.17%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14968.
+INFO mv_pipeline: Triggered 14877 / 14994 analyzed windows (99.2%).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.0599 cycles/sample.
+INFO mv_pipeline: Template built from 2975 bright pulses.
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.0599 cycles/sample.
+INFO mv_pipeline: Template built from 2827 bright pulses.
+
+==============================================================================
+TIME-WALK REPORT -- run00270_ch9
+==============================================================================
+  Shipped slope (n_bins=12):  +0.692 samples/amp
+  Fitted amplitude range:     0.34 - 2.57
+  Walk across that range:     +3.79 samples
+  Slope above amp >= 0.5:     +0.884 samples/amp
+  chi2/dof   linear =    8.5   a+b/A =    2.5   dAIC(1/A - linear) = -88.9
+  -> CURVED (1/A beats a line): the walk lives at low amplitude, not in the MIP pulses
+
+  Binning stability (n_bins 8-30): spread = 0.175 samples/amp
+
+  CLOSURE (synthetic events with NO true walk; must return ~0):
+     centered     -0.000
+     jitter       +0.166
+     offset +3    -0.024
+     offset -3    +0.026
+     -> estimator bias <= 0.166 samples/amp; a slope above that on real
+        data is REAL (not an artifact of the trigger or a mis-centered window).
+
+  TEMPLATE SWAP (walk on real data, template rebuilt per amplitude class):
+     dim template     +0.542
+     bright template  +1.503
+     shipped template +0.692
+     -> the walk MOVES with the template's amplitude class: the pulse shape
+        depends on amplitude, so no single template can remove the walk.
+
+  SHAPE vs AMPLITUDE (template-free, half-max aligned; pickup NOTCHED)
+     notched-out line period(s): 10.2 samples
+       <amp>      N | rise 10-90 crest lag    FWHM  fall50  fall1/e | (raw rise) (raw lag)
+        0.60   1958 |       3.62      2.83    8.27    5.44     6.96 |       3.62      2.83
+        0.73   1959 |       3.64      2.89    8.34    5.45     6.96 |       3.64      2.89
+        0.88   1959 |       3.65      2.93    8.35    5.42     6.95 |       3.65      2.93
+        1.06   1958 |       3.63      2.96    8.37    5.42     6.90 |       3.63      2.96
+        1.33   1959 |       3.64      2.92    8.31    5.39     6.90 |       3.64      2.92
+        1.94   1959 |       3.58      2.92    8.37    5.45     6.95 |       3.58      2.92
+     drift dim -> bright: rise -0.04  crest lag +0.08  FWHM +0.09  fall50 +0.01  (samples)
+     -> the RISING EDGE is amplitude-independent: the walk is not a rise/crest-timing effect.
+     -> the stack WIDTH is amplitude-independent here; the template-swap width split must then arise in the template BUILD (amplitude weighting / xcorr alignment), not in the pulses.
+==============================================================================
+

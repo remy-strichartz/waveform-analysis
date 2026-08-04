@@ -1,0 +1,63 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 411 vs down 86 ADC, 95th-pct excursion).
+WARNING mv_pipeline: Auto-window: 3.0% of real-pulse peaks sit outside the estimated search pad (+/-54 samples); the pulse timing may be multi-modal. Set --search-pad explicitly if pulses are being missed.
+INFO mv_pipeline: Auto-window: pulse_center=451 search_pad=54 template_pre=49 template_post=217 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 22.9803 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3587.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 115 events (0.8%).
+INFO common.waveform_ops: Pileup: 0 (0.0%).  Noise: 5779 (38.5%).
+INFO common.waveform_ops: Saturation: 114 events (1.2%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 5893/14994 prefix events (5779 NOISE, 0 PILEUP, 114 rail-clipped); the template uses the remaining 9101 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0982, 0.2082, 0.0220, 0.0644 cycles/sample.
+INFO mv_pipeline: Template built from 3125 bright pulses.
+INFO mv_pipeline: Noise model: dropped 94/14994 prefix events (0.63%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14900.
+INFO mv_pipeline: Triggered 12327 / 14994 analyzed windows (82.2%).
+INFO common.waveform_ops: Saturation: 120 events (1.0%).
+WARNING mv_pipeline: Optimal filter: the fitted MIP line stands only 4.8 sigma above the raw per-sample baseline noise (MPV 0.3172 x template peak 349 ADC / noise sigma 23; the bar is 5.0). In the filtered observable it is 27.4 sigma -- but a pulse this small in the raw trace is not a trustworthy MIP line, and NO gamma/muon cut is reported. Check --polarity / --pulse-center, or accept that the channel is too dim.
+INFO boxcar: Boxcar optimal width = 41 samples (colored-noise SNR).
+WARNING mv_pipeline: No usable gamma/muon cut: every candidate (equal-area None, crossover None, valley -0.006757) fell outside (0, MPV=0.3055). The two populations are not separable in this spectrum -- reporting the MIP fit with NO cut.
+WARNING mv_pipeline: Boxcar (W=41): the fitted MIP line stands only 4.6 sigma above the raw per-sample baseline noise (MPV 0.3055 x template peak 349 ADC / noise sigma 23; the bar is 5.0). In the filtered observable it is 26.4 sigma -- but a pulse this small in the raw trace is not a trustworthy MIP line, and NO gamma/muon cut is reported. Check --polarity / --pulse-center, or accept that the channel is too dim.
+INFO mv_pipeline: Noise model: dropped 94/12327 prefix events (0.76%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 12233.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,327 / 14,994
+Noise sigma (ADC): 22.98
+Boxcar window:     41 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.3172 obs   (Landau(x)Gauss + response tail chi2_red=3.55)
+                     line-width sigma/MPV = 32.0% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-2.32 on [1, 2.66]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 4.8 sigma  (one sample)
+                     MIP / filter resolution   = 27.4 sigma  (this observable)
+                     MIP / trigger floor       = 6.9x  (floor = 0.04626 obs)
+                     [UNRELIABLE -- see the warning above; no cut reported]
+                     (fit excludes 120 rail-clipped events)
+  Boxcar (W=41)      MPV=0.3055 obs   (Landau(x)Gauss + response tail chi2_red=5.52)
+                     line-width sigma/MPV = 27.7% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.67 on [1, 2.65]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 4.6 sigma  (one sample)
+                     MIP / filter resolution   = 26.4 sigma  (this observable)
+                     MIP / trigger floor       = 6.6x  (floor = 0.04626 obs)
+                     [UNRELIABLE -- see the warning above; no cut reported]
+                     (fit excludes 120 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     NO CUT DERIVED (no MIP line above the raw baseline noise); 12,327 events left unclassified
+  Boxcar (W=41)      NO CUT DERIVED (no MIP line above the raw baseline noise); 12,327 events left unclassified
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.01135, measured 0.01178 (meas/pred = 1.04)
+  OF goodness-of-fit:      median chi2_red = 0.82, 90th pct = 1.49
+  OF chi2 vs amplitude:    chi2_red(A) = 0.76 + (A/1.85)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 1.85 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -1.88e+00 samples/amp
+  Amplitude-area band:     240 / 12,327 off-band (1.95%)
+  Saturation/linearity:    146 above ~70% of the 3584 ADC full scale (1.18%); 120 clipped at rail 3584
+------------------------------------------------------------------

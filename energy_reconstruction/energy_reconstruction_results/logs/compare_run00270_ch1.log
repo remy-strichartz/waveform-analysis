@@ -1,0 +1,64 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 1.36e+03 vs down 164 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=447 search_pad=47 template_pre=48 template_post=201 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 48.1845 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3572.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 161 events (1.1%).
+INFO common.waveform_ops: Pileup: 3 (0.0%).  Noise: 3052 (20.4%).
+INFO common.waveform_ops: Saturation: 163 events (1.4%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3218/14994 prefix events (3052 NOISE, 3 PILEUP, 163 rail-clipped); the template uses the remaining 11776 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1025, 0.2082, 0.0733, 0.0234 cycles/sample.
+INFO mv_pipeline: Template built from 10055 bright pulses.
+INFO mv_pipeline: Noise model: dropped 71/14994 prefix events (0.47%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14923.
+INFO mv_pipeline: Triggered 12465 / 14994 analyzed windows (83.1%).
+INFO common.waveform_ops: Saturation: 175 events (1.4%).
+INFO boxcar: Boxcar optimal width = 29 samples (colored-noise SNR).
+WARNING mv_pipeline: Gamma/muon cut is DEGENERATE: the equal-area root (0.2177) sits on the top of the gamma's fit range (0.2376), so the balance is satisfied by the gamma running out of support there rather than by the two populations. The cut is a boundary artifact -- treat it as a landmark, not a measured boundary.
+INFO mv_pipeline: Noise model: dropped 71/12465 prefix events (0.57%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 12394.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,465 / 14,994
+Noise sigma (ADC): 48.18
+Boxcar window:     29 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.6637 +/- 0.0035 obs   (Landau(x)Gauss + response tail chi2_red=0.85)
+                     line-width sigma/MPV = 19.1% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-4.25 on [1, 3.13]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 9.6 sigma  (one sample)
+                     MIP / filter resolution   = 73.7 sigma  (this observable)
+                     MIP / trigger floor       = 18.4x  (floor = 0.03603 obs)
+                     (fit excludes 175 rail-clipped events)
+  Boxcar (W=29)      MPV=0.6638 +/- 0.0032 obs   (Landau(x)Gauss + response tail chi2_red=0.97)
+                     line-width sigma/MPV = 18.7% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-4.40 on [1, 2.96]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 9.6 sigma  (one sample)
+                     MIP / filter resolution   = 73.7 sigma  (this observable)
+                     MIP / trigger floor       = 18.4x  (floor = 0.03603 obs)
+                     (fit excludes 175 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     cut=0.1992 +/- 0.0085 (4%) (equal-area): 12,022 muon-like, 443 gamma-like (96.4% muon-like)
+                     fitted gamma population = 3.60% of events
+                     gamma fit chi2_red = 1.1
+  Boxcar (W=29)      cut=0.2177 +/- 0.026 (12%) (equal-area): 11,997 muon-like, 468 gamma-like (96.2% muon-like)
+                     fitted gamma population = 4.33% of events
+                     gamma fit chi2_red = 1.9
+                     [DEGENERATE: the equal-area root sits on the valley (0.2069) -- the muon model has no area below it, so the
+                      balance is trivial. The cut is the valley walk's answer, with the valley walk's noise.]
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.00799, measured 0.009054 (meas/pred = 1.13)
+  OF goodness-of-fit:      median chi2_red = 1.02, 90th pct = 2.50
+  OF chi2 vs amplitude:    chi2_red(A) = 0.88 + (A/2.50)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 2.50 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -1.67e+00 samples/amp
+  Amplitude-area band:     382 / 12,465 off-band (3.06%)
+  Saturation/linearity:    242 above ~70% of the 3567 ADC full scale (1.94%); 175 clipped at rail 3567
+------------------------------------------------------------------

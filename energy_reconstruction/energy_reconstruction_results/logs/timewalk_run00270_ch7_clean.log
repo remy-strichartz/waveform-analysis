@@ -1,0 +1,62 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (3293, 1024) (first 3,293 rows).
+INFO mv_pipeline: Loaded 3293 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 660 vs down 121 ADC, 95th-pct excursion).
+WARNING mv_pipeline: Auto-window: 3.3% of real-pulse peaks sit outside the estimated search pad (+/-54 samples); the pulse timing may be multi-modal. Set --search-pad explicitly if pulses are being missed.
+INFO mv_pipeline: Auto-window: pulse_center=450 search_pad=54 template_pre=49 template_post=221 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 35.5824 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3410.4 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 1 events (0.0%).
+INFO common.waveform_ops: Pileup: 0 (0.0%).  Noise: 69 (2.1%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 69/3293 prefix events (69 NOISE, 0 PILEUP, 0 rail-clipped); the template uses the remaining 3224 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1024, 0.0243, 0.2080 cycles/sample.
+INFO mv_pipeline: Template built from 482 bright pulses.
+INFO mv_pipeline: Noise model: dropped 4/3293 prefix events (0.12%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 3289.
+INFO mv_pipeline: Triggered 3291 / 3293 analyzed windows (99.9%).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1023, 0.0246, 0.2080 cycles/sample.
+INFO mv_pipeline: Template built from 658 bright pulses.
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1024, 0.2080, 0.0227, 0.4989 cycles/sample.
+INFO mv_pipeline: Template built from 626 bright pulses.
+
+==============================================================================
+TIME-WALK REPORT -- run00270_ch7_clean
+==============================================================================
+  Shipped slope (n_bins=12):  -4.385 samples/amp
+  Fitted amplitude range:     0.21 - 0.57
+  Walk across that range:     -1.56 samples
+  Slope above amp >= 0.5:     +nan samples/amp
+  chi2/dof   linear =    0.1   a+b/A =    0.6   dAIC(1/A - linear) = +1.0
+  -> AMBIGUOUS: neither shape is preferred
+
+  Binning stability (n_bins 8-30): spread = 3.751 samples/amp
+     WARNING: the spread is a large fraction of the slope -- the reported
+     number is dominated by the binning, not by the data.  Do not quote it.
+
+  CLOSURE (synthetic events with NO true walk; must return ~0):
+     centered     -0.016
+     jitter       +0.016
+     offset +3    -0.282
+     offset -3    -0.137
+     -> estimator bias <= 0.282 samples/amp; a slope above that on real
+        data is REAL (not an artifact of the trigger or a mis-centered window).
+
+  TEMPLATE SWAP (walk on real data, template rebuilt per amplitude class):
+     dim template     -0.698
+     bright template  -2.218
+     shipped template -4.385
+     -> the walk MOVES with the template's amplitude class: the pulse shape
+        depends on amplitude, so no single template can remove the walk.
+
+  SHAPE vs AMPLITUDE (template-free, half-max aligned; pickup NOTCHED)
+     notched-out line period(s): 9.8, 40.3, 6.9 samples
+       <amp>      N | rise 10-90 crest lag    FWHM  fall50  fall1/e | (raw rise) (raw lag)
+        0.20    434 |      34.04     27.13   60.64   33.51    39.41 |      30.79     13.07
+        0.22    433 |      33.69     26.69   60.66   33.97    39.77 |      30.55     13.13
+        0.25    433 |      33.76     27.89   60.87   32.99    39.01 |      30.33     13.12
+        0.28    433 |      33.45     28.08   61.34   33.26    40.27 |      30.17     13.08
+        0.34    433 |      33.95     28.10   61.76   33.66    40.92 |      29.79     13.33
+        0.83    434 |      33.74     28.71   63.46   34.75    42.44 |      28.65     21.54
+     drift dim -> bright: rise -0.30  crest lag +1.58  FWHM +2.82  fall50 +1.24  (samples)
+     -> the RISING EDGE is amplitude-independent: the walk is not a rise/crest-timing effect.
+     -> the pulse WIDTH grows +2.82 samples dim -> bright but NOT mainly on the decay side (fall50 +1.24): the crest carries it.
+==============================================================================
+

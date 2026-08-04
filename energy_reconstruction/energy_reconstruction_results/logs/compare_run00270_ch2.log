@@ -1,0 +1,59 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 1.11e+03 vs down 110 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=451 search_pad=47 template_pre=53 template_post=193 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 28.1694 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3562.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 160 events (1.1%).
+INFO common.waveform_ops: Pileup: 4 (0.0%).  Noise: 3023 (20.2%).
+INFO common.waveform_ops: Saturation: 155 events (1.3%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3182/14994 prefix events (3023 NOISE, 4 PILEUP, 155 rail-clipped); the template uses the remaining 11812 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1016, 0.2081, 0.1376 cycles/sample.
+INFO mv_pipeline: Template built from 11067 bright pulses.
+INFO mv_pipeline: Noise model: dropped 45/14994 prefix events (0.30%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14949.
+INFO mv_pipeline: Triggered 12380 / 14994 analyzed windows (82.6%).
+INFO common.waveform_ops: Saturation: 163 events (1.3%).
+INFO boxcar: Boxcar optimal width = 30 samples (colored-noise SNR).
+INFO mv_pipeline: Noise model: dropped 40/12380 prefix events (0.32%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 12340.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,380 / 14,994
+Noise sigma (ADC): 28.17
+Boxcar window:     30 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.6877 +/- 0.0078 obs   (Landau(x)Gauss chi2_red=1.23)
+                     line-width sigma/MPV = 23.1% (Landau(x)Gauss; upper bound)
+                     MIP / raw baseline noise  = 12.6 sigma  (one sample)
+                     MIP / filter resolution   = 60.6 sigma  (this observable)
+                     MIP / trigger floor       = 15.1x  (floor = 0.04542 obs)
+                     (fit excludes 163 rail-clipped events)
+  Boxcar (W=30)      MPV=0.6934 +/- 0.0093 obs   (Landau(x)Gauss chi2_red=1.45)
+                     line-width sigma/MPV = 22.4% (Landau(x)Gauss; upper bound)
+                     MIP / raw baseline noise  = 12.8 sigma  (one sample)
+                     MIP / filter resolution   = 61.1 sigma  (this observable)
+                     MIP / trigger floor       = 15.3x  (floor = 0.04542 obs)
+                     (fit excludes 163 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     cut=0.1534 +/- 0.011 (7%) (equal-area): 12,063 muon-like, 317 gamma-like (97.4% muon-like)
+                     fitted gamma population = 2.48% of events
+                     gamma fit chi2_red = 5.4
+  Boxcar (W=30)      cut=0.145 +/- 0.015 (10%) (equal-area): 12,056 muon-like, 324 gamma-like (97.4% muon-like)
+                     fitted gamma population = 2.04% of events
+                     gamma fit chi2_red = 3.6
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.01152, measured 0.01142 (meas/pred = 0.99)
+  OF goodness-of-fit:      median chi2_red = 0.76, 90th pct = 1.49
+  OF chi2 vs amplitude:    chi2_red(A) = 0.70 + (A/4.63)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 4.63 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -1.55e+00 samples/amp
+  Amplitude-area band:     297 / 12,380 off-band (2.40%)
+  Saturation/linearity:    209 above ~70% of the 3557 ADC full scale (1.69%); 163 clipped at rail 3557
+------------------------------------------------------------------

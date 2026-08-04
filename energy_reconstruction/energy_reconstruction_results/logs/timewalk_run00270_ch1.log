@@ -1,0 +1,62 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 1.36e+03 vs down 164 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=447 search_pad=47 template_pre=48 template_post=201 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 48.1845 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3572.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 161 events (1.1%).
+INFO common.waveform_ops: Pileup: 3 (0.0%).  Noise: 3052 (20.4%).
+INFO common.waveform_ops: Saturation: 163 events (1.4%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3218/14994 prefix events (3052 NOISE, 3 PILEUP, 163 rail-clipped); the template uses the remaining 11776 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1025, 0.2082, 0.0733, 0.0234 cycles/sample.
+INFO mv_pipeline: Template built from 10055 bright pulses.
+INFO mv_pipeline: Noise model: dropped 71/14994 prefix events (0.47%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14923.
+INFO mv_pipeline: Triggered 12465 / 14994 analyzed windows (83.1%).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1027, 0.2082, 0.0233 cycles/sample.
+INFO mv_pipeline: Template built from 2493 bright pulses.
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1028, 0.2082, 0.0241 cycles/sample.
+INFO mv_pipeline: Template built from 2368 bright pulses.
+
+==============================================================================
+TIME-WALK REPORT -- run00270_ch1
+==============================================================================
+  Shipped slope (n_bins=12):  -1.675 samples/amp
+  Fitted amplitude range:     0.11 - 2.89
+  Walk across that range:     -2.64 samples
+  Slope above amp >= 0.5:     -0.874 samples/amp
+  chi2/dof   linear =    1.9   a+b/A =    2.9   dAIC(1/A - linear) = +10.6
+  -> LINEAR: a genuine amplitude-proportional walk
+
+  Binning stability (n_bins 8-30): spread = 0.815 samples/amp
+
+  CLOSURE (synthetic events with NO true walk; must return ~0):
+     centered     -0.004
+     jitter       -0.035
+     offset +3    +0.099
+     offset -3    +0.032
+     -> estimator bias <= 0.099 samples/amp; a slope above that on real
+        data is REAL (not an artifact of the trigger or a mis-centered window).
+
+  TEMPLATE SWAP (walk on real data, template rebuilt per amplitude class):
+     dim template     -1.188
+     bright template  -2.729
+     shipped template -1.675
+     -> the walk MOVES with the template's amplitude class: the pulse shape
+        depends on amplitude, so no single template can remove the walk.
+
+  SHAPE vs AMPLITUDE (template-free, half-max aligned; pickup NOTCHED)
+     notched-out line period(s): 9.7, 41.0, 4.8 samples
+       <amp>      N | rise 10-90 crest lag    FWHM  fall50  fall1/e | (raw rise) (raw lag)
+        0.61   1641 |      29.42     24.96   53.86   28.90    37.24 |      37.78     22.31
+        0.70   1641 |      28.95     24.94   54.10   29.16    37.28 |      36.76     22.24
+        0.79   1642 |      28.87     24.68   53.83   29.14    37.19 |      36.12     21.81
+        0.92   1641 |      28.97     24.68   54.06   29.38    37.39 |      34.94     21.56
+        1.15   1641 |      28.63     24.49   54.06   29.58    37.64 |      28.63     21.35
+        1.99   1641 |      28.47     24.52   54.22   29.69    38.00 |      26.91     21.07
+     drift dim -> bright: rise -0.95  crest lag -0.44  FWHM +0.35  fall50 +0.79  (samples)
+     -> the RISING EDGE is amplitude-independent: the walk is not a rise/crest-timing effect.
+     -> the stack WIDTH is amplitude-independent here; the template-swap width split must then arise in the template BUILD (amplitude weighting / xcorr alignment), not in the pulses.
+     -> NOTE the RAW drift (-10.88) is an artifact of the pickup ripple
+        dragging the argmax off the crest on the dim bands, NOT a shape change.
+==============================================================================
+

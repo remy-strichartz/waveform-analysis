@@ -1,0 +1,56 @@
+INFO mv_pipeline: Time gate: excluding [43.35, 49.98) h -> dropped 2141 / 14994 events (14.3%); 12853 remain over 43.35 h.
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (12853 selected rows).
+INFO mv_pipeline: Loaded 12853 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is negative (up 30 vs down 455 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=441 search_pad=39 template_pre=20 template_post=54 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 4.4478 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 2335.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 5 events (0.0%).
+INFO common.waveform_ops: Pileup: 15 (0.1%).  Noise: 1890 (14.7%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 1905/12853 prefix events (1890 NOISE, 15 PILEUP, 0 rail-clipped); the template uses the remaining 10948 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.0980, 0.2090 cycles/sample.
+INFO mv_pipeline: Template built from 10145 bright pulses.
+INFO mv_pipeline: Triggered 12788 / 12853 analyzed windows (99.5%); 2141 excluded by the time gate.
+INFO boxcar: Boxcar optimal width = 10 samples (colored-noise SNR).
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  12,788 / 12,853
+Noise sigma (ADC): 4.448
+Boxcar window:     10 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.7581 obs   (Landau(x)Gauss + response tail chi2_red=1.02)
+                     line-width sigma/MPV = 28.2% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-2.09 on [1, 3.00]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 38.1 sigma  (one sample)
+                     MIP / filter resolution   = 102.4 sigma  (this observable)
+                     MIP / trigger floor       = 25.6x  (floor = 0.02961 obs)
+  Boxcar (W=10)      MPV=0.7578 obs   (Landau(x)Gauss + response tail chi2_red=1.06)
+                     line-width sigma/MPV = 28.3% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.97 on [1, 2.98]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 38.1 sigma  (one sample)
+                     MIP / filter resolution   = 102.4 sigma  (this observable)
+                     MIP / trigger floor       = 25.6x  (floor = 0.02961 obs)
+
+Gamma/muon separation
+  Optimal filter     cut=0.2537 +/- 0.015 (6%) (equal-area): 9,151 muon-like, 3,637 gamma-like (71.6% muon-like)
+                     fitted gamma population = 28.58% of events
+                     gamma fit chi2_red = 2.2
+  Boxcar (W=10)      cut=0.2207 +/- 0.019 (9%) (equal-area): 9,266 muon-like, 3,522 gamma-like (72.5% muon-like)
+                     fitted gamma population = 26.91% of events
+                     gamma fit chi2_red = 5.9
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.006887, measured 0.006147 (meas/pred = 0.89)
+  OF goodness-of-fit:      median chi2_red = 3.13, 90th pct = 9.78
+  OF chi2 vs amplitude:    chi2_red(A) = 1.75 + (A/0.70)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 0.70 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = 1.85e-01 samples/amp
+  Amplitude-area band:     958 / 12,788 off-band (7.49%)
+  Saturation/linearity:    14 above ~70% of the 2337 ADC full scale (0.11%); no hard clipping
+------------------------------------------------------------------

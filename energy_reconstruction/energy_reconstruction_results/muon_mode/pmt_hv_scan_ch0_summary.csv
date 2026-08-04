@@ -1,0 +1,31 @@
+# PMT HV-scan runs through the energy_reconstruction chain (extract ch0 -> triage
+# --detector pmt --export -> compare --mode muon --polarity negative), 2026-07-30.
+# Inputs: waveform_files/pmt_study_test_071626 (CAEN wavedump, 1000 external triggers
+# per run, no per-event timestamps).  n_clean = triage CLEAN events (prominence >= 6
+# noise sigma); n_sat = true ADC-0 rail clips EXCLUDED from the fit input; MPV = the
+# Landau(x)Gauss most-probable value of the optimal filter / boxcar amplitude spectrum,
+# quoted in absolute gain-tracking units.  of_chi2_med is the per-event OF chi2_red
+# median -- it grows ~ (A/A0)^2 with pulse amplitude by design (template-shape jitter,
+# see of-chi2-amplitude-trend); it is NOT a fit-quality flag for the MPV.
+# 'refusals' lists the pipeline's own trustworthiness guards that fired.
+# Per-run plots: <stem>_compare_results/ beside this file.  Session logs are the
+# provenance; regenerate any row with the three commands above.
+scan,voltage_V,n_clean,n_sat,n_pileup,of_mpv_adc_peak,of_mpv_adc_samp_charge,bx_mpv_adc_peak,bx_mpv_adc_samp_charge,of_chi2_med,refusals
+bottom,800,13,0,0,17.01,50.53,15.2,45.14,0.2,"MPV/trigger-floor 1.7x (bar 6): line reported, nothing else trusted; template from all 13 events (small-file floor)"
+bottom,1100,87,0,0,21.3,842.8,28.07,1111,2.78,"MPV/trigger-floor 5.2x (bar 6): no gamma cut possible (none expected in muon mode)"
+bottom,1400,109,0,0,248.2,10420,283,11880,99.29,
+bottom,1550,103,10,0,530.9,29680,693.6,38770,257.4,"low-amplitude (few-PE) population below the MIP line; Landau fit floored at the valley"
+bottom,1700,85,35,1,1387,74390,1480,79330,1753,"low-amplitude (few-PE) population below the MIP line; Landau fit floored at the valley"
+top,1100,89,0,0,36.92,1137,53.51,1647,1.77,"6 low-amplitude events below the fit valley"
+# A/B (not a scan row): bottom 1400 V run on the RAW ch0 file (no triage) -- the OF
+# trigger alone selected 115/1000 events and gave OF MPV 271.7 ADC peak / 12210
+# ADC.samp (+9.5% vs the triage-clean input): the two population definitions agree
+# to ~10%, mirroring pmt_study's own finding that the counting rule is a definition.
+# 2026-08-03: all six rows regenerated after two mv_pipeline robustness fixes.  Only
+# bottom 800 V moved (13.05 -> 17.01 OF peak): its old "template" was a 2-event noise
+# average (small-file floor now takes the brightest min(n, 25)), and compare's rail
+# test had mistaken the 13 same-size near-noise peaks for a 15-ADC rail, excluding
+# 7/13 events from the fit (rails must now clear 6 noise sigma).  Every other row is
+# bit-identical; the row stays guard-refused either way.  Template tails on ALL rows
+# are geometry-truncated (pulses early in the record + trigger jitter eat the
+# pre-pulse noise budget) -- the plots now annotate this; it is not a pulse shape.

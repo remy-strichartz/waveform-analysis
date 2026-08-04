@@ -1,0 +1,60 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 836 vs down 81 ADC, 95th-pct excursion).
+INFO mv_pipeline: Auto-window: pulse_center=442 search_pad=47 template_pre=45 template_post=211 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 16.3086 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3604.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 115 events (0.8%).
+INFO common.waveform_ops: Pileup: 4 (0.0%).  Noise: 2971 (19.8%).
+INFO common.waveform_ops: Saturation: 112 events (0.9%).
+INFO mv_pipeline: Triage cleaned the template set: dropped 3087/14994 prefix events (2971 NOISE, 4 PILEUP, 112 rail-clipped); the template uses the remaining 11907 (PSD and trigger-noise still use the full prefix).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1028, 0.2081, 0.0305 cycles/sample.
+INFO mv_pipeline: Template built from 11315 bright pulses.
+INFO mv_pipeline: Noise model: dropped 118/14994 prefix events (0.79%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14876.
+INFO mv_pipeline: Triggered 12530 / 14994 analyzed windows (83.6%).
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1033, 0.2082, 0.0303 cycles/sample.
+INFO mv_pipeline: Template built from 2505 bright pulses.
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1032, 0.2082, 0.0303 cycles/sample.
+INFO mv_pipeline: Template built from 2380 bright pulses.
+
+==============================================================================
+TIME-WALK REPORT -- run00270_ch3
+==============================================================================
+  Shipped slope (n_bins=12):  -0.690 samples/amp
+  Fitted amplitude range:     0.32 - 3.19
+  Walk across that range:     -2.28 samples
+  Slope above amp >= 0.5:     -0.777 samples/amp
+  chi2/dof   linear =    1.2   a+b/A =    2.0   dAIC(1/A - linear) = +5.7
+  -> LINEAR: a genuine amplitude-proportional walk
+
+  Binning stability (n_bins 8-30): spread = 0.176 samples/amp
+
+  CLOSURE (synthetic events with NO true walk; must return ~0):
+     centered     +0.000
+     jitter       -0.004
+     offset +3    -0.071
+     offset -3    -0.101
+     -> estimator bias <= 0.101 samples/amp; a slope above that on real
+        data is REAL (not an artifact of the trigger or a mis-centered window).
+
+  TEMPLATE SWAP (walk on real data, template rebuilt per amplitude class):
+     dim template     -0.287
+     bright template  -1.173
+     shipped template -0.690
+     -> the walk MOVES with the template's amplitude class: the pulse shape
+        depends on amplitude, so no single template can remove the walk.
+
+  SHAPE vs AMPLITUDE (template-free, half-max aligned; pickup NOTCHED)
+     notched-out line period(s): 9.7, 4.8, 7.5 samples
+       <amp>      N | rise 10-90 crest lag    FWHM  fall50  fall1/e | (raw rise) (raw lag)
+        0.54   1650 |      24.83     18.16   51.37   33.22    44.18 |      25.82     20.98
+        0.66   1650 |      24.78     18.52   51.13   32.61    43.69 |      25.28     20.92
+        0.78   1649 |      24.62     18.49   51.13   32.65    43.70 |      25.00     20.71
+        0.93   1650 |      24.47     18.63   50.84   32.21    42.75 |      24.69     20.34
+        1.20   1650 |      24.44     18.94   50.75   31.82    42.56 |      24.56     20.45
+        2.35   1649 |      23.96     18.40   50.69   32.28    43.16 |      24.20     20.77
+     drift dim -> bright: rise -0.87  crest lag +0.25  FWHM -0.69  fall50 -0.93  (samples)
+     -> the RISING EDGE is amplitude-independent: the walk is not a rise/crest-timing effect.
+     -> the stack WIDTH is amplitude-independent here; the template-swap width split must then arise in the template BUILD (amplitude weighting / xcorr alignment), not in the pulses.
+==============================================================================
+

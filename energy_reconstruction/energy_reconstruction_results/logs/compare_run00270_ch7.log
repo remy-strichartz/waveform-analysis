@@ -1,0 +1,67 @@
+INFO mv_pipeline: HDF5: using dataset 'waveforms' (14994, 1024) (first 14,994 rows).
+INFO mv_pipeline: Loaded 14994 waveforms of length 1024.
+INFO mv_pipeline: Auto-polarity: channel is positive (up 311 vs down 118 ADC, 95th-pct excursion).
+WARNING mv_pipeline: Auto-window: the 99% central peak positions span 530 samples (> half the 1024-sample record); the channel may lack a coherent pulse (noise-dominated). Check --pulse-center or triage the input.
+WARNING mv_pipeline: Auto-window: 8.7% of real-pulse peaks sit outside the estimated search pad (+/-61 samples); the pulse timing may be multi-modal. Set --search-pad explicitly if pulses are being missed.
+WARNING mv_pipeline: Auto-window: the measured pulse extent wants template_pre=50/template_post=297 but the pre-pulse noise budget allows 50/288: pulses sit early in the record (center=449 of 1024) with +/-61 samples of trigger jitter, and the noise model must fit before the earliest rise (2*template_pre + template_post <= center - search_pad = 388). The template (and the OF frequency weight) will show a truncated decay tail -- record geometry, not a pulse-shape measurement. More pre-trigger delay in the DAQ, or an explicit --search-pad below 61, buys tail samples.
+INFO mv_pipeline: Auto-window: pulse_center=449 search_pad=61 template_pre=50 template_post=288 (auto-set: pulse_center, search_pad, template_pre, template_post; kept explicit: none).
+INFO mv_pipeline: Noise sigma = 34.8411 ADC.
+INFO common.waveform_ops: No rail; using 99.99th pct of peaks = 3494.0 ADC (advisory only).
+INFO common.waveform_ops: Saturation: 105 events (0.7%).
+INFO common.waveform_ops: Pileup: 0 (0.0%).  Noise: 11417 (76.1%).
+INFO common.waveform_ops: Saturation: 101 events (2.8%).
+WARNING mv_pipeline: Template cleaning dropped 11518/14994 model-prefix events (77%) as NOISE/PILEUP/clipped -- most of the channel. The template is built from the 3476 survivors, but a channel this noise-dominated will not support a trustworthy MIP fit; check --polarity / --pulse-center, and expect the reliability guard to flag the result.
+INFO mv_pipeline: Template alignment guided by a pickup-notched copy: line(s) at 0.1024, 0.0240, 0.2081 cycles/sample.
+INFO mv_pipeline: Template built from 515 bright pulses.
+INFO mv_pipeline: Noise model: dropped 46/14994 prefix events (0.31%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 14948.
+INFO mv_pipeline: Triggered 11944 / 14994 analyzed windows (79.7%).
+INFO common.waveform_ops: Saturation: 107 events (0.9%).
+WARNING mv_pipeline: Optimal filter: the fitted MIP line stands only 2.1 sigma above the raw per-sample baseline noise (MPV 0.1072 x template peak 692 ADC / noise sigma 34.8; the bar is 5.0). In the filtered observable it is 13.3 sigma -- but a pulse this small in the raw trace is not a trustworthy MIP line, and NO gamma/muon cut is reported. Check --polarity / --pulse-center, or accept that the channel is too dim.
+WARNING mv_pipeline: Optimal filter: the MIP line (MPV 0.1072) sits only 3.3x above the TRIGGER FLOOR (0.0322 = 4.0 x the optimal filter's amplitude resolution); the bar is 6.0x. The gamma/noise population lives BELOW the MIP line, and the trigger has already removed everything under the floor -- so there is no gamma population left in this spectrum to cut against, and the histogram's low edge is the threshold turn-on, not physics. The MIP line itself is still fit and reported; NO gamma/muon cut is. Lower --trigger-sigma to recover the low-amplitude events, or accept that this channel cannot support the cut.
+INFO boxcar: Boxcar optimal width = 10 samples (colored-noise SNR).
+WARNING mv_pipeline: No usable gamma/muon cut: every candidate (equal-area None, crossover None, valley -0.02549) fell outside (0, MPV=0.09101). The two populations are not separable in this spectrum -- reporting the MIP fit with NO cut.
+WARNING mv_pipeline: Boxcar (W=10): the fitted MIP line stands only 1.8 sigma above the raw per-sample baseline noise (MPV 0.09101 x template peak 692 ADC / noise sigma 34.8; the bar is 5.0). In the filtered observable it is 11.3 sigma -- but a pulse this small in the raw trace is not a trustworthy MIP line, and NO gamma/muon cut is reported. Check --polarity / --pulse-center, or accept that the channel is too dim.
+WARNING mv_pipeline: Boxcar (W=10): the MIP line (MPV 0.09101) sits only 2.8x above the TRIGGER FLOOR (0.0322 = 4.0 x the optimal filter's amplitude resolution); the bar is 6.0x. The gamma/noise population lives BELOW the MIP line, and the trigger has already removed everything under the floor -- so there is no gamma population left in this spectrum to cut against, and the histogram's low edge is the threshold turn-on, not physics. The MIP line itself is still fit and reported; NO gamma/muon cut is. Lower --trigger-sigma to recover the low-amplitude events, or accept that this channel cannot support the cut.
+INFO mv_pipeline: Noise model: dropped 46/11944 prefix events (0.39%) as interference bursts (log pre-pulse power > median + 5.0 MAD sigma); the PSD and the trigger's response-noise scale are built from the remaining 11898.
+
+==================================================================
+Waveform analysis  (all values in ADC-derived observable units)
+==================================================================
+Triggered events:  11,944 / 14,994
+Noise sigma (ADC): 34.84
+Boxcar window:     10 samples
+
+Muon (MIP) line
+  Optimal filter     MPV=0.1072 obs   (Landau(x)Gauss + response tail chi2_red=2.81)
+                     line-width sigma/MPV = 30.9% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.00 on [1, 3.12]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 2.1 sigma  (one sample)
+                     MIP / filter resolution   = 13.3 sigma  (this observable)
+                     MIP / trigger floor       = 3.3x  (floor = 0.0322 obs)   [no room below it for a gamma population]
+                     [UNRELIABLE -- see the warning above; no cut reported]
+                     (fit excludes 107 rail-clipped events)
+  Boxcar (W=10)      MPV=0.09101 obs   (Landau(x)Gauss + response tail chi2_red=4.73)
+                     line-width sigma/MPV = 23.8% (core, at scale t=1; upper bound)
+                     + BIC-selected response tail: light-yield scale t ~ t^-1.00 on [1, 3.52]  (see _langau_tailmix)
+                     MIP / raw baseline noise  = 1.8 sigma  (one sample)
+                     MIP / filter resolution   = 11.3 sigma  (this observable)
+                     MIP / trigger floor       = 2.8x  (floor = 0.0322 obs)   [no room below it for a gamma population]
+                     [UNRELIABLE -- see the warning above; no cut reported]
+                     (fit excludes 107 rail-clipped events)
+
+Gamma/muon separation
+  Optimal filter     NO CUT DERIVED (the MIP line is only 3.3x the trigger floor -- the trigger already removed the gamma population); 11,944 events left unclassified
+  Boxcar (W=10)      NO CUT DERIVED (the MIP line is only 2.8x the trigger floor -- the trigger already removed the gamma population); 11,944 events left unclassified
+==================================================================
+
+------------------------------------------------------------------
+Quality-control diagnostics
+------------------------------------------------------------------
+  OF amplitude resolution: predicted 0.007819, measured 0.008181 (meas/pred = 1.05)
+  OF goodness-of-fit:      median chi2_red = 0.68, 90th pct = 1.16
+  OF chi2 vs amplitude:    chi2_red(A) = 0.64 + (A/0.99)^2  (the band RISES -- this is template mismatch, not a bad fit;
+                           A0 = 0.99 is the template-fidelity scale, higher = better)
+  Timing:                  time-walk slope = -3.56e+00 samples/amp
+  Amplitude-area band:     358 / 11,944 off-band (3.00%)
+  Saturation/linearity:    122 above ~70% of the 3490 ADC full scale (1.02%); 107 clipped at rail 3490
+------------------------------------------------------------------
