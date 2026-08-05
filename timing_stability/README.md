@@ -10,7 +10,6 @@ Every analysis folder in this workspace treats the run as an unordered bag of
 | `file_manipulation`     | MIDAS/CAEN → HDF5, channel extraction, channel diagnostics | recovers the time axis at conversion (below) |
 | `preprocessing`         | triage, pulse windows, hodoscope efficiency                | intra-event sample offsets; quotes the dead-time systematic |
 | `energy_reconstruction` | OF/boxcar amplitudes, spectra (ADC units)                  | "noise stationarity" vs **event index**, not time; `--exclude-hours` gate |
-| `sipm_characterization` | SPE gain, DCR, crosstalk, afterpulsing (bench)             | intra-record dark-pulse intervals only |
 
 Nobody had ever decoded **when** the events happened.  Yet run00270 spans
 **50 hours**, and three things that matter for the veto live exclusively on the
