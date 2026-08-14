@@ -124,8 +124,13 @@ Individual channels, if you need one:
 
 ```bash
 python compare.py --input run00270_ch0.h5 --save-plots --no-show --overwrite
-python compare.py --mode muon --save-plots --no-show --overwrite `
-    --input ..\preprocessing\preprocessing_results\triage\run00270_ch9_triage_results\run00270_ch9_clean.h5
+
+# The triage-cleaned exports are waveform-qc's output, and they are .h5 -- gitignored, so
+# they ship with neither repo and exist only where triage was run.  $TRIAGE_RESULTS points
+# at that tree; it is the same variable run_batch.py reads, which does this for you.
+# (PowerShell: $env:TRIAGE_RESULTS)
+python compare.py --mode muon --save-plots --no-show --overwrite \
+    --input "$TRIAGE_RESULTS/run00270_ch9_triage_results/run00270_ch9_clean.h5"
 ```
 
 `--mode` is **provenance, not shape**: whether a gamma/muon cut is meaningful is a
