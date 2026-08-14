@@ -49,9 +49,8 @@ install it first:
 # development — tracks your local edits
 pip install -e ../waveform-io
 
-# or reproducible — pinned tag.  The repo is private, so this needs SSH or a PAT;
-# pip cannot use the token `gh auth` keeps in the keyring.
-pip install "waveform-io @ git+ssh://git@github.com/remy-strichartz/waveform-io.git@v0.1.0"
+# or reproducible — pinned tag.  waveform-io is public, so this needs no credentials.
+pip install "waveform-io @ git+https://github.com/remy-strichartz/waveform-io.git@v0.1.0"
 ```
 
 Then:
@@ -105,6 +104,6 @@ python energy_reconstruction/tests/test_energy_reconstruction.py
 ```
 
 18 tests. Also collected by `pytest` from the repo root, and run on every push
-([`.github/workflows/tests.yml`](.github/workflows/tests.yml) — note it needs the
-`WAVEFORM_IO_TOKEN` secret to check out the private base repo). `timing_stability` has no
-suite of its own; `run_stability` is exercised through the pipeline tests above.
+([`.github/workflows/tests.yml`](.github/workflows/tests.yml), which checks out
+`waveform-io` alongside this repo and installs it). `timing_stability` has no suite of its
+own; `run_stability` is exercised through the pipeline tests above.

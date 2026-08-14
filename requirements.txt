@@ -8,10 +8,11 @@
 #       pip install -e ../waveform-io
 #
 #   reproducible, pinned:
-#       pip install "waveform-io @ git+ssh://git@github.com/remy-strichartz/waveform-io.git@v0.1.0"
+#       pip install "waveform-io @ git+https://github.com/remy-strichartz/waveform-io.git@v0.1.0"
 #
-#   The repo is private, so the git form needs SSH (as written) or a PAT -- pip cannot use
-#   the token that `gh auth` keeps in the keyring.
+#   waveform-io is public, so the git form needs no credentials.  If it is ever made
+#   private again, switch to git+ssh:// -- pip cannot use the token `gh auth` keeps in
+#   the keyring.
 #
 # The scipy floor is NOT optional: the MIP line is fit with scipy.stats.landau
 # (mv_pipeline.py), which older scipy does not carry -- it fails at import rather than
