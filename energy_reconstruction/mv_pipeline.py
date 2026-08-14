@@ -88,12 +88,12 @@ from scipy.special import erf
 from scipy.stats import chi2 as chi2_dist, landau, rankdata, trim_mean
 
 # The shared triage primitives -- flat-top saturation detector, polarity vote and
-# median-pulse extent rule -- live in common/waveform_ops.py, so this pipeline calls an
+# median-pulse extent rule -- live in hodoscope_common/waveform_ops.py, so this pipeline calls an
 # event "clipped" / a channel "negative" / a pulse "this wide" on exactly the grounds
 # triage does (one source of truth).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # repo root (see README)
 
-from common.waveform_ops import (classify_events, detect_saturation,  # noqa: E402
+from hodoscope_common.waveform_ops import (classify_events, detect_saturation,  # noqa: E402
                                  median_pulse_extent, polarity_vote, triage_cuts)
 
 logger = logging.getLogger("mv_pipeline")
@@ -663,8 +663,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_WAVEFORM_DIR = _PROJECT_ROOT / "waveform_files"
 DEFAULT_OUTPUT_DIR   = _PROJECT_ROOT / "results"
 
-# Shared waveform-file and per-run results-folder conventions (see common/output_paths.py).
-from common.output_paths import (find_related, list_waveforms,  # noqa: E402
+# Shared waveform-file and per-run results-folder conventions (see hodoscope_common/output_paths.py).
+from hodoscope_common.output_paths import (find_related, list_waveforms,  # noqa: E402
                                  program_token, resolve_input,
                                  resolve_results_dir, results_base)
 

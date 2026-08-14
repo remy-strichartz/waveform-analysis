@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waveform-analysis"
+version = "0.1.0"
+description = "Muon hodoscope energy reconstruction and timing stability: templates, optimal filtering, the muon-line fit, run-level drift"
+requires-python = ">=3.11"
+
+# Kept in sync with requirements.txt.  The scipy floor is NOT optional: the MIP line is
+# fit with scipy.stats.landau (energy_reconstruction/mv_pipeline.py), which older scipy
+# does not carry -- it fails at import rather than degrading gracefully, and the
+# Landau (x) Gauss fit *is* the energy reconstruction.
+#
+# waveform-io is not on PyPI.  Install it first, from a local checkout or a pinned tag --
+# see requirements.txt.  With it already present in the environment, `pip install -e .`
+# here resolves normally.
+dependencies = [
+    "scipy>=1.16",
+    "numpy",
+    "h5py",
+    "pandas",
+    "matplotlib",
+    "waveform-io",
+]
+
+[tool.setuptools]
+packages = [
+    "energy_reconstruction",
+    "timing_stability",
+]
+
+[tool.pytest.ini_options]
+# timing_stability has no suite of its own; run_stability is exercised through
+# energy_reconstruction's pipeline tests, which is why only one path is listed.
+testpaths = [
+    "energy_reconstruction/tests",
+]

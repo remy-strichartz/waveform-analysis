@@ -1,0 +1,27 @@
+# Dependencies for waveform-analysis.  See the Environment section in README.md.
+#
+# waveform-io supplies `hodoscope_common` (the file layout, the waveform primitives) and
+# `file_manipulation` (the MIDAS parser and TTT clock recovery, which timing_stability
+# calls directly).  It is NOT on PyPI -- install it first, one of two ways:
+#
+#   development, tracks your local edits:
+#       pip install -e ../waveform-io
+#
+#   reproducible, pinned:
+#       pip install "waveform-io @ git+ssh://git@github.com/remy-strichartz/waveform-io.git@v0.1.0"
+#
+#   The repo is private, so the git form needs SSH (as written) or a PAT -- pip cannot use
+#   the token that `gh auth` keeps in the keyring.
+#
+# The scipy floor is NOT optional: the MIP line is fit with scipy.stats.landau
+# (mv_pipeline.py), which older scipy does not carry -- it fails at import rather than
+# degrading gracefully, and the Landau (x) Gauss fit *is* the energy reconstruction.
+scipy>=1.16
+
+# No floors established for the rest; the versions below are what every number in the
+# results trees was produced under (run_batch.py records this in each batch's manifest).
+#   numpy 2.4.1   h5py 3.16.0   pandas 3.0.3   matplotlib 3.10.8
+numpy
+h5py
+pandas
+matplotlib
