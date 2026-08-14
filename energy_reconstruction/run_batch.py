@@ -19,6 +19,16 @@ moves a printed QC number.
     C:\\Users\\remys\\miniconda3\\python.exe run_batch.py            # ~80 min
     C:\\Users\\remys\\miniconda3\\python.exe run_batch.py --dry-run  # list the jobs
 
+Two paths have to be set, because since the three-repo split neither the data nor the
+triage exports live beside this package:
+
+    $WAVEFORM_FILES   the waveform_files/ data tree
+    $TRIAGE_RESULTS   waveform-qc's preprocessing_results/triage/, which holds the
+                      run00270_chN_clean.h5 exports (--triage-dir overrides it)
+
+Both are .h5 and gitignored, so they exist only where they were produced.  `--dry-run`
+checks that every clean export resolves before committing to the full ~80 minutes.
+
 Console output is ASCII: redirected stdout falls back to cp1252 on this machine and a
 stray non-ASCII character would kill the run after all the work is done.
 """
@@ -26,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import subprocess
 import sys
 import time
@@ -34,12 +45,27 @@ from pathlib import Path
 ER = Path(__file__).resolve().parent
 ROOT = ER.parent
 LOGS = ER / "energy_reconstruction_results" / "logs"
-TRIAGE = ROOT / "preprocessing" / "preprocessing_results" / "triage"
+
+# Where waveform-qc wrote its triage results.  The exports this batch needs are .h5 files,
+# so they are gitignored and ship with NEITHER repo -- they exist only on a machine where
+# triage has actually been run.  Since the three-repo split, preprocessing/ is not a sibling
+# of this package either, so $TRIAGE_RESULTS (or --triage-dir) is how the two halves are
+# joined.  The fallback is the old single-repo layout, which still resolves in a
+# monorepo-style checkout.
+def _triage_dir(override: str | None = None) -> Path:
+    return Path(override or os.environ.get("TRIAGE_RESULTS")
+                or ROOT / "preprocessing" / "preprocessing_results" / "triage")
+
 
 # The triage-cleaned exports.  ch9/ch10 feed muon-mode compares (the gamma population is
 # already gone upstream -- --mode is provenance, not shape); ch7 feeds a timewalk report.
-CLEAN = {ch: TRIAGE / f"run00270_{ch}_triage_results" / f"run00270_{ch}_clean.h5"
-         for ch in ("ch7", "ch9", "ch10")}
+def _clean_exports(triage: Path) -> dict[str, Path]:
+    return {ch: triage / f"run00270_{ch}_triage_results" / f"run00270_{ch}_clean.h5"
+            for ch in ("ch7", "ch9", "ch10")}
+
+
+TRIAGE = _triage_dir()
+CLEAN = _clean_exports(TRIAGE)
 
 RAW = ["run00270_ch0", "run00270_ch1", "run00270_ch2", "run00270_ch3",
        "run00270_ch4", "run00270_ch5", "run00270_ch6", "run00270_ch7",
@@ -103,7 +129,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dry-run", action="store_true",
                     help="list the jobs and check every input resolves; run nothing")
+    ap.add_argument("--triage-dir", metavar="DIR",
+                    help="waveform-qc's preprocessing_results/triage/, holding the "
+                         "run00270_chN_clean.h5 exports. Defaults to $TRIAGE_RESULTS, "
+                         "then to preprocessing/ beside this package (single-repo layout).")
     args = ap.parse_args()
+
+    if args.triage_dir:
+        global TRIAGE, CLEAN
+        TRIAGE = _triage_dir(args.triage_dir)
+        CLEAN = _clean_exports(TRIAGE)
 
     todo = jobs()
 
@@ -114,8 +149,10 @@ def main() -> int:
         missing = [str(p) for p in CLEAN.values() if not p.exists()]
         for p in missing:
             print(f"  MISSING INPUT: {p}")
-        print("\nclean-export inputs: " + ("all present" if not missing
-                                           else f"{len(missing)} MISSING"))
+        print(f"\ntriage dir: {TRIAGE}")
+        print("clean-export inputs: " + ("all present" if not missing
+                                         else f"{len(missing)} MISSING -- set "
+                                              "$TRIAGE_RESULTS or pass --triage-dir"))
         return 1 if missing else 0
 
     LOGS.mkdir(parents=True, exist_ok=True)

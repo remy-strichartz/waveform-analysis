@@ -659,13 +659,12 @@ def resolve_polarity(waveforms: np.ndarray, config: Config) -> Config:
 # Shared CLI for the analysis drivers (optimal_filter / boxcar / compare)
 # ===========================================================================
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_WAVEFORM_DIR = _PROJECT_ROOT / "waveform_files"
-DEFAULT_OUTPUT_DIR   = _PROJECT_ROOT / "results"
-
 # Shared waveform-file and per-run results-folder conventions (see hodoscope_common/output_paths.py).
-from hodoscope_common.output_paths import (find_related, list_waveforms,  # noqa: E402
-                                 program_token, resolve_input,
+# WAVEFORM_DIR is imported rather than derived from __file__: it honours $WAVEFORM_FILES, and
+# since the three-repo split this package no longer sits beside the data tree, so a
+# __file__-relative guess would name a directory that does not exist.
+from hodoscope_common.output_paths import (WAVEFORM_DIR, find_related,  # noqa: E402
+                                 list_waveforms, program_token, resolve_input,
                                  resolve_results_dir, results_base)
 
 # Drivers whose results are routed into a <mode>_mode subfolder (they have an analysis
@@ -817,8 +816,9 @@ def config_from_args(args, script_file: str | None = None, program: str | None =
     else:
         candidates = list_waveforms()
         if not candidates:
-            raise FileNotFoundError(f"No .h5 files found in {DEFAULT_WAVEFORM_DIR} or its "
-                                    "dataset folders. Pass --input explicitly.")
+            raise FileNotFoundError(f"No .h5 files found in {WAVEFORM_DIR} or its "
+                                    "dataset folders. Pass --input explicitly, or set "
+                                    "$WAVEFORM_FILES to the data tree.")
         kwargs["input_path"] = candidates[0]
         logger.info("No --input given; using %s", kwargs["input_path"])
     if args.polarity is not None: kwargs["polarity"] = args.polarity

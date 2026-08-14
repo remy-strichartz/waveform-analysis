@@ -77,8 +77,8 @@ from scipy.stats import kstest, spearmanr
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))                            # repo root (see README)
 
-from hodoscope_common.output_paths import (resolve_input, resolve_output,  # noqa: E402
-                                 resolve_results_dir, run_dir)
+from hodoscope_common.output_paths import (WAVEFORM_DIR, resolve_input,  # noqa: E402
+                                 resolve_output, resolve_results_dir, run_dir)
 from hodoscope_common.timing_ops import dead_time_bound                    # noqa: E402
 from file_manipulation import midas_to_h5 as midas               # noqa: E402
 from file_manipulation.clock_recovery import (RESID_FAIL_S,      # noqa: E402
@@ -87,7 +87,10 @@ from file_manipulation.clock_recovery import (RESID_FAIL_S,      # noqa: E402
 
 logger = logging.getLogger("event_times")
 
-DEFAULT_WAVEFORM_DIR = _PROJECT_ROOT / "waveform_files"
+# The data tree, honouring $WAVEFORM_FILES.  NOT __file__-relative: since the three-repo
+# split this package no longer sits beside the data, so the selftest below would otherwise
+# write into a waveform_files/ that does not exist.
+DEFAULT_WAVEFORM_DIR = WAVEFORM_DIR
 
 
 # ===========================================================================
