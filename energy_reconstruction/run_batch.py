@@ -156,15 +156,21 @@ def main() -> int:
         return 1 if missing else 0
 
     LOGS.mkdir(parents=True, exist_ok=True)
-    complete = LOGS / "COMPLETE.txt"
-    complete.unlink(missing_ok=True)      # absent until the batch actually finishes
 
+    # Provenance FIRST, before anything below touches the working tree.  Deleting
+    # COMPLETE.txt is itself a modification, so reading the git state after it made
+    # _provenance() report "WORKING TREE DIRTY" on every run once the results trees became
+    # tracked -- the manifest disowned its own numbers, which is the exact opposite of the
+    # guarantee it exists to give.
     started = datetime.datetime.now().astimezone()
     lines = ["Canonical run of the energy_reconstruction pipeline",
              f"date: {started.isoformat()}",
              *_provenance(),
              "seed: Config.seed = 20240601 (default; all pipeline randomness is seeded)",
              ""]
+
+    complete = LOGS / "COMPLETE.txt"
+    complete.unlink(missing_ok=True)      # absent until the batch actually finishes
 
     failures = 0
     for i, (name, argv) in enumerate(todo, 1):
